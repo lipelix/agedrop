@@ -393,6 +393,12 @@ branch) and a GitHub **fine-grained personal access token** limited to that repo
 `localStorage` when "Remember on this device" is ticked, and is sent only to `https://api.github.com`.
 "Sign out" removes it. There is no OAuth: GitHub's token exchange needs a client secret and a server.
 
+Password managers may save the token, and the form tells them what it is: the repository field has
+`autocomplete="username"` and the token field `autocomplete="current-password"`. A saved entry (Safari's
+Keychain, for one) is then named after the repository, and filling it fills both the repository and its
+token. The branch field has `autocomplete="off"`. Whether to save stays the user's choice in the browser's
+prompt; the page neither asks for it nor prevents it.
+
 ### Pages
 
 - **Inventory**: every scope in `agedrop.toml` with its recipients, and its secrets with kind, last change

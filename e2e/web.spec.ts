@@ -33,6 +33,23 @@ test("signs in and shows the inventory", async ({ page }) => {
   );
 });
 
+test("the sign-in form names a saved token after its repository", async ({ page }) => {
+  const { github } = await webFixture();
+  await connect(page, github);
+  await page.goto("/");
+  // A password manager saves the token with the repository as its username (SPEC.md § Sign-in).
+  const repository = page.getByLabel("Repository");
+  const token = page.getByLabel("Fine-grained token");
+  await expect(repository).toHaveAttribute("autocomplete", "username");
+  await expect(token).toHaveAttribute("autocomplete", "current-password");
+  await expect(token).toHaveAttribute("type", "password");
+  await expect(page.getByLabel("Branch")).toHaveAttribute("autocomplete", "off");
+  // Both fields sit in the one form, so a filled entry signs in to its own repository.
+  const form = page.locator("form.signin");
+  await expect(form.locator("#repository")).toHaveCount(1);
+  await expect(form.locator("#token")).toHaveCount(1);
+});
+
 test("fulfils a request: one commit, age decrypts it on the host, no plaintext on the wire", async ({
   page,
 }) => {
