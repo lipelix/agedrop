@@ -343,3 +343,22 @@ token is scoped to one repository and expires, and the page still keeps it only 
 stay blocked for the same reason, and gains `configMissing`. The pages show that case once, as a notice that names
 the repository and branch and says to run `agedrop init --owner <name>` there, and drop both the problem line and
 the "no scopes" line. A wrong repository or branch looks the same as one not set up yet, so the notice names both.
+
+## 2026-11-15 — Values are masked with a font of dots
+
+**Context.** On an iPhone with a saved sign-in (named `owner/name`, see above), tapping **Secret name** on **Add**
+offered that entry and filled `owner/name` in, and committing a value brought up **Save password?**. Masked
+fields used `-webkit-text-security: disc`, which Safari's AutoFill takes for a password field, so Secret name and
+Value looked like a login form. `autocomplete="off"` does not stop it.
+
+**Options.** Keep `-webkit-text-security` and add more opt-out attributes (Safari ignores them for what it sees as
+passwords); show values unmasked; or mask with a font in which every character is a dot.
+
+**Decision.** A font of dots. `web/dot-font.ts` builds `web/src/dots.ttf` (1.5 KB, no dependencies): one dot glyph,
+mapped from U+0020 up through a format 13 `cmap`, so no character falls back to a readable font, Latin, CJK and
+emoji included. A test checks the committed file matches the generator, and an end-to-end test checks that any
+eight characters render as the same eight dots in WebKit and Chromium. The font is inlined in the stylesheet, so
+it is there with the first keystroke; the CSP gains `font-src data:`, and `font-display: block` keeps text
+invisible rather than readable if it were ever late. The rule is `!important` so no field style brings a readable
+font back. Trade-offs: a screen reader reads the field's text, as it does any text field, and copying selected
+text copies the value, as before. Whether Safari on a real iPhone no longer offers the sign-in is checked by hand.

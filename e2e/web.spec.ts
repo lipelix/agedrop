@@ -154,6 +154,66 @@ test("adds a file-style secret from a file and replaces an env one with a genera
   expect(await storage(page)).not.toContain(generated);
 });
 
+test("masks values with a font of dots, so AutoFill sees no password field", async ({ page }) => {
+  const { github } = await webFixture();
+  await connect(page, github);
+  await signIn(page);
+  await page.getByRole("link", { name: "Add", exact: true }).click();
+  await page.getByLabel("Scope").selectOption("ci/deploy");
+
+  // Safari's AutoFill takes a field with -webkit-text-security for a password field (issue #9).
+  const masking = (selector: string) =>
+    page.locator(selector).evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        security: style.getPropertyValue("-webkit-text-security") || "none",
+        // WebKit drops the quotes around a family name, Chromium keeps them.
+        font: style.fontFamily.replaceAll('"', ""),
+      };
+    });
+  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+
+  for (const [name, selector] of [
+    ["NPM_TOKEN", "#value"],
+    ["deploy.key", "#value-text"],
+  ] as const) {
+    await page.getByLabel("Secret name").fill(name);
+    const field = page.locator(selector);
+    expect(await masking(selector)).toEqual({ security: "none", font: "agedrop dots" });
+
+    // Any eight characters look the same: eight dots, never their shapes. The shot is the
+    // field's inside, without the border and its focus transition.
+    const look = async (value: string): Promise<Buffer> => {
+      await field.fill(value);
+      await field.blur();
+      await page.evaluate(() => document.fonts.ready);
+      const box = await field.boundingBox();
+      if (box === null) throw new Error(`${selector} is not visible`);
+      const inset = 6;
+      return page.screenshot({
+        animations: "disabled",
+        clip: {
+          x: box.x + inset,
+          y: box.y + inset,
+          width: box.width - 2 * inset,
+          height: box.height - 2 * inset,
+        },
+      });
+    };
+    const empty = await look("");
+    const latin = await look("aaaaaaaa");
+    const mixed = await look("WMiŽ中😀 é");
+    expect(latin.equals(empty)).toBe(false);
+    expect(mixed.equals(latin)).toBe(true);
+
+    await page.getByLabel("Show").check();
+    expect((await masking(selector)).font).not.toContain("agedrop dots");
+    expect((await look("WMiŽ中😀 é")).equals(latin)).toBe(false);
+    await page.getByLabel("Show").uncheck();
+    await field.fill("");
+  }
+});
+
 test("refuses empty values and invalid names before anything is sent", async ({ page }) => {
   const { github } = await webFixture();
   await connect(page, github);

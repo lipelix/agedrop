@@ -420,6 +420,10 @@ prompt; the page neither asks for it nor prevents it.
 - An env-style value is one line of text. A file-style value is multi-line text, with `\n` line endings,
   or the exact bytes of a file picked from the device. The value is stored exactly as entered.
 - "Generate" fills in 32 random bytes from `crypto.getRandomValues`, base64url-encoded without padding.
+- A value is masked until "Show" is ticked: the field is an ordinary text field drawn in a font whose every
+  character is the same dot, not a password field and not `-webkit-text-security`, which Safari's AutoFill
+  takes for one. Password managers then neither offer a saved sign-in for the form's fields nor offer to
+  save the value. The font is inlined in the stylesheet, and the Content Security Policy allows `data:` fonts.
 - An empty value, an env-style value with a NUL byte and a file over 1 MiB are refused.
 - The value lives only in the form and in memory while it is encrypted. It is never put in storage, a URL
   or a log, and only its age ciphertext leaves the device. The form is cleared after the commit.

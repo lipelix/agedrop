@@ -3,7 +3,7 @@ import { defineConfig, type Plugin } from "vite";
 
 /** The same policy as public/_headers, as a meta tag, so it also holds in `vite preview` and the tests. */
 const CSP =
-  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.github.com; manifest-src 'self'; base-uri 'none'; form-action 'none'";
+  "default-src 'none'; script-src 'self'; style-src 'self'; font-src data:; img-src 'self' data:; connect-src https://api.github.com; manifest-src 'self'; base-uri 'none'; form-action 'none'";
 
 function contentSecurityPolicy(): Plugin {
   return {
