@@ -333,3 +333,13 @@ holds the right value, so there is no hidden username field. Preventing saving w
 lose the Keychain's own protection. Saving stays the user's choice in the browser's prompt; a fine-grained
 token is scoped to one repository and expires, and the page still keeps it only in `sessionStorage` unless
 "Remember on this device" is ticked.
+
+## 2026-11-15 — A repository without agedrop.toml is "not set up", said once
+
+**Context.** Signed in to a repository without `agedrop.toml`, the inventory listed the problem
+`agedrop.toml: missing` and, under it, "agedrop.toml defines no scopes yet.", which is wrong when there is no file.
+
+**Decision.** The snapshot keeps `agedrop.toml: missing` in its problems, as `agedrop check` reports it, so writes
+stay blocked for the same reason, and gains `configMissing`. The pages show that case once, as a notice that names
+the repository and branch and says to run `agedrop init --owner <name>` there, and drop both the problem line and
+the "no scopes" line. A wrong repository or branch looks the same as one not set up yet, so the notice names both.

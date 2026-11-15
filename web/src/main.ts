@@ -417,15 +417,46 @@ function field(id: string, label: string, control: HTMLElement, hint?: string | 
 
 // ----------------------------------------------------------------------------------------- inventory
 
-function problemsBox(snapshot: Snapshot): HTMLElement | null {
-  if (snapshot.problems.length === 0) return null;
+/** Says that the branch has no agedrop.toml, and how to set it up. */
+function notSetUpBox(snapshot: Snapshot): HTMLElement {
   return h(
+    "section",
+    { class: "not-set-up", "aria-labelledby": "not-set-up-title" },
+    h("h2", { id: "not-set-up-title" }, "This repository is not set up for agedrop"),
+    h(
+      "p",
+      {},
+      h("strong", {}, snapshot.repository),
+      " has no ",
+      h("code", {}, "agedrop.toml"),
+      " on branch ",
+      h("strong", {}, snapshot.branch),
+      ".",
+    ),
+    h(
+      "p",
+      {},
+      "Run ",
+      h("code", {}, "agedrop init --owner <name>"),
+      " in a clone of it and push, or check the repository and branch you signed in with.",
+    ),
+  );
+}
+
+function problemsBox(snapshot: Snapshot): HTMLElement | HTMLElement[] | null {
+  // Without agedrop.toml, "agedrop.toml: missing" is said once, by the not-set-up box.
+  const problems = snapshot.configMissing
+    ? snapshot.problems.filter((problem) => problem !== "agedrop.toml: missing")
+    : snapshot.problems;
+  const notSetUp = snapshot.configMissing ? notSetUpBox(snapshot) : null;
+  if (problems.length === 0) return notSetUp;
+  const box = h(
     "section",
     { class: "problems", "aria-labelledby": "problems-title" },
     h(
       "h2",
       { id: "problems-title" },
-      `${String(snapshot.problems.length)} problem${snapshot.problems.length === 1 ? "" : "s"} found`,
+      `${String(problems.length)} problem${problems.length === 1 ? "" : "s"} found`,
     ),
     h(
       "p",
@@ -435,9 +466,10 @@ function problemsBox(snapshot: Snapshot): HTMLElement | null {
     h(
       "ul",
       {},
-      snapshot.problems.map((problem) => h("li", {}, h("code", {}, problem))),
+      problems.map((problem) => h("li", {}, h("code", {}, problem))),
     ),
   );
+  return notSetUp === null ? box : [notSetUp, box];
 }
 
 function inventoryView(snapshot: Snapshot): HTMLElement {
@@ -562,9 +594,11 @@ function inventoryView(snapshot: Snapshot): HTMLElement {
       : null,
     lockBar(ownerContext(snapshot)),
     problemsBox(snapshot),
-    snapshot.scopes.length === 0
-      ? h("p", { class: "empty" }, "agedrop.toml defines no scopes yet.")
-      : snapshot.scopes.map((scope) => scopeCard(scope.scope, scope.resolved?.names)),
+    snapshot.configMissing
+      ? null
+      : snapshot.scopes.length === 0
+        ? h("p", { class: "empty" }, "agedrop.toml defines no scopes yet.")
+        : snapshot.scopes.map((scope) => scopeCard(scope.scope, scope.resolved?.names)),
     [...new Set(orphans.map((secret) => secret.scope))].map((scope) => scopeCard(scope, undefined)),
   );
 }
