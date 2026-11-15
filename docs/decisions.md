@@ -314,3 +314,22 @@ backup stays the fallback for browsers or password managers without PRF.
 
 **Found on the way** (separate issues): Safari offers to save the sign-in token as a password with no username,
 and a repository without `agedrop.toml` also shows "defines no scopes yet".
+
+## 2026-11-15 — A saved sign-in token is named after its repository
+
+**Context.** On the iPhone check, Safari on iOS and macOS offered **Save password** after sign-in. The token
+field had `autocomplete="off"`, which Safari ignores for password fields, and the form had no username field,
+so the Keychain entry got an empty username or whatever Safari suggested (an email address). The next
+sign-in offered that entry for the token field, whichever repository was typed.
+
+**Options.** Prevent saving (a text field with masking, so Safari does not see a password), or keep saving and
+label the entry.
+
+**Decision.** Keep saving, labelled. The repository field gets `autocomplete="username"` and the token field
+`autocomplete="current-password"`. The entry is then named `owner/name`, one per repository, and filling it
+fills both fields, so it signs in to the repository the token was made for. The repository field already
+holds the right value, so there is no hidden username field. Preventing saving would fight the browser
+(masked text fields are fragile, and Safari's heuristics change), push users to paste tokens from notes, and
+lose the Keychain's own protection. Saving stays the user's choice in the browser's prompt; a fine-grained
+token is scoped to one repository and expires, and the page still keeps it only in `sessionStorage` unless
+"Remember on this device" is ticked.

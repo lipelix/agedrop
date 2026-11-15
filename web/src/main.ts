@@ -298,7 +298,8 @@ function signInView(): HTMLElement {
     required: true,
     placeholder: "owner/name",
     pattern: "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+",
-    autocomplete: "off",
+    // The repository is the password manager's username: a saved token is named after it.
+    autocomplete: "username",
     autocapitalize: "off",
     autocorrect: "off",
     spellcheck: "false",
@@ -322,7 +323,7 @@ function signInView(): HTMLElement {
     name: "token",
     type: "password",
     required: true,
-    autocomplete: "off",
+    autocomplete: "current-password",
     autocapitalize: "off",
     spellcheck: "false",
     placeholder: "github_pat_…",
