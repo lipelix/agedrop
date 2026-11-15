@@ -404,7 +404,9 @@ prompt; the page neither asks for it nor prevents it.
 - **Inventory**: every scope in `agedrop.toml` with its recipients, and its secrets with kind, last change
   (date and author of the last commit that touched the file) and status `ok`, `stale` or `unknown scope`
   as `ls` computes it. Open requests are counted and linked. Problems found by the checks `check` runs on
-  `agedrop.toml`, `recipients/*.pub`, `agedrop.lock` and `requests/*.toml` are listed.
+  `agedrop.toml`, `recipients/*.pub`, `agedrop.lock` and `requests/*.toml` are listed. A branch without
+  `agedrop.toml` is not set up: the page says so once, names the repository and branch, and tells to run
+  `agedrop init --owner <name>` there, instead of listing `agedrop.toml: missing` or saying it has no scopes.
 - **Add or replace**: a scope defined in `agedrop.toml`, a secret name and its value.
 - **Requests**: the open requests, newest first. Each opens a fulfil form that shows its scope, name,
   reason, requester, date and `generate` hint. The hint is shown as text and never run. A notification links to
