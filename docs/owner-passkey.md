@@ -9,7 +9,7 @@ device PIN. No private key sits on a server: the owner's key is in the repositor
 
 - A browser and passkey with the WebAuthn **PRF** extension:
   - Safari on iOS 18.4 or later, or on macOS 15 or later, with the passkey in iCloud Keychain.
-    iOS 18.0 to 18.3 had a PRF bug, so update first.
+    iOS 18.0 to 18.3 had a PRF bug, so update first. Checked end to end on an iPhone with iOS 27.0.1.
   - Chrome 132 or later, with the passkey in Google Password Manager or iCloud Keychain.
   - Third-party password managers may save the passkey but not support PRF. The page then says it
     "cannot derive keys". Use the system keychain, or unlock with the backup.

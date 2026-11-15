@@ -293,3 +293,24 @@ everything else itself:
 Tokens go to tofu as `TF_VAR_*` environment variables and are never written to disk; the plan file, which holds
 them, lives in a temporary directory that the script removes. `--check` does all of this read-only and stops
 before applying.
+
+## 2026-11-15 — Owner passkey checked on a real iPhone: PRF works, no passphrase wrapping
+
+**Context.** The owner passkey flow had only run against a fake PRF authenticator and Chromium's virtual
+authenticator. The open question from the 2026-11-14 owner passkey entry was whether Safari on a real iPhone
+derives PRF keys from an iCloud Keychain passkey, and if not, whether to add passphrase (scrypt) wrapping.
+
+**Check.** iPhone, iOS 27.0.1 (24A446), Safari, passkey in iCloud Keychain, against the deployed
+`app.agedrop.dev` and a throwaway private repository with one secret encrypted to a file-based owner key.
+- Sign-in with a fine-grained token, then **Owner → Set up a passkey** for a new owner: create the passkey and
+  lock the key, one Face ID each. The backup was shown once, and the commit added `recipients/<name>.pub` and
+  `recipients/<name>.identity.age` (an `age-encryption.org/fido2prf` stanza).
+- On a laptop, the new owner was added to `owners` and `agedrop rekey` ran with the file-based owner key.
+- **Lock**, then **Show**: one Face ID, and the value appeared, byte for byte the one that was added.
+- `age -d -i backup.txt secrets/<scope>/<NAME>.age` with the stock `age` CLI gave the same value.
+
+**Decision.** PRF works with iCloud Keychain passkeys on the iPhone, so **no passphrase (scrypt) wrapping**. The
+backup stays the fallback for browsers or password managers without PRF.
+
+**Found on the way** (separate issues): Safari offers to save the sign-in token as a password with no username,
+and a repository without `agedrop.toml` also shows "defines no scopes yet".
