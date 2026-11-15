@@ -35,7 +35,10 @@ function vapidKeyPair() {
   const ecdh = createECDH("prime256v1");
   ecdh.generateKeys();
   return {
-    privateKey: ecdh.getPrivateKey().toString("base64url"),
+    // getPrivateKey drops leading zero bytes (1 key in 256); web-push pads to 32 bytes the same way.
+    privateKey: Buffer.from(ecdh.getPrivateKey().toString("hex").padStart(64, "0"), "hex").toString(
+      "base64url",
+    ),
     publicKey: ecdh.getPublicKey().toString("base64url"),
   };
 }
