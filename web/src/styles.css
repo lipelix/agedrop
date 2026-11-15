@@ -601,6 +601,30 @@ form > .button[type="submit"] {
   overflow-wrap: anywhere;
 }
 
+.not-set-up {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  border: 1.5px solid color-mix(in oklch, var(--warn) 45%, transparent);
+  animation: enter 320ms var(--ease-out);
+}
+
+.not-set-up h2 {
+  margin: 0 0 0.35rem;
+}
+
+.not-set-up p {
+  margin: 0.35rem 0;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.not-set-up code {
+  font-family: var(--font-type);
+  white-space: nowrap;
+}
+
 .scope {
   margin-bottom: 1rem;
   background: var(--paper);

@@ -71,6 +71,8 @@ export interface Snapshot {
   readonly ownerIdentities: ReadonlyMap<string, string>;
   /** `<file>: <problem>` lines, as `agedrop check` prints them. */
   readonly problems: readonly string[];
+  /** True when the branch has no `agedrop.toml`: the repository is not set up for agedrop. */
+  readonly configMissing: boolean;
 }
 
 /** The repository files a snapshot is built from. */
@@ -270,6 +272,7 @@ export async function buildSnapshot(
     recipientFiles,
     ownerIdentities,
     problems,
+    configMissing: files.config === undefined,
   };
 }
 

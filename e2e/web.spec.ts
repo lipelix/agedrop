@@ -190,6 +190,30 @@ test("lists repository problems and writes nothing while they last", async ({ pa
   expect(github.commits).toHaveLength(2);
 });
 
+test("says once that a repository without agedrop.toml is not set up", async ({ page }) => {
+  const { github } = await webFixture();
+  github.push("agedrop.toml", undefined);
+  await connect(page, github);
+  await signIn(page);
+
+  const notice = page.getByRole("region", { name: "This repository is not set up for agedrop" });
+  await expect(notice).toContainText(`${REPOSITORY} has no agedrop.toml on branch main.`);
+  await expect(notice).toContainText("agedrop init --owner <name>");
+  await expect(page.getByText("defines no scopes yet")).toHaveCount(0);
+  await expect(page.getByText("agedrop.toml: missing")).toHaveCount(0);
+});
+
+test("says that an agedrop.toml without scopes defines none", async ({ page }) => {
+  const { github } = await webFixture();
+  github.push("agedrop.toml", 'version = 0\n\n[recipients]\nowners = ["owner"]\n');
+  await connect(page, github);
+  await signIn(page);
+
+  await expect(page.getByRole("heading", { name: "Inventory" })).toBeVisible();
+  await expect(page.getByText("agedrop.toml defines no scopes yet.")).toBeVisible();
+  await expect(page.getByRole("region", { name: /not set up/ })).toHaveCount(0);
+});
+
 test("a notification's link fills in the repository and opens the fulfil form after sign-in", async ({
   page,
 }) => {
