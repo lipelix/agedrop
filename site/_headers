@@ -1,0 +1,17 @@
+# Cloudflare Pages response headers for agedrop.dev (the landing page; the app's are in web/public/_headers).
+# The page loads Google Fonts and runs one inline script (the theme, before first paint), allowed by its hash.
+# test/site.test.ts fails when the inline script changes and this hash does not.
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'sha256-RRtTAo4S6sFlNJMsbsGPAbHkKyEPPDFJIRGX3zPS1yw='; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff
+  Cross-Origin-Opener-Policy: same-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# Previews and the pages.dev host stay out of search results; only agedrop.dev is indexed.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
+
+https://:version.:project.pages.dev/*
+  X-Robots-Tag: noindex

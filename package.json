@@ -1,0 +1,79 @@
+{
+  "name": "agedrop",
+  "version": "0.1.0",
+  "description": "Secrets as age files in git: write with public keys only, read with a private key, agents request and never see values.",
+  "keywords": [
+    "age",
+    "secrets",
+    "encryption",
+    "git",
+    "agents",
+    "cli",
+    "dotenv",
+    "secret-management"
+  ],
+  "license": "MIT",
+  "author": "Libor Váchal",
+  "homepage": "https://agedrop.dev",
+  "bugs": {
+    "url": "https://github.com/lipelix/agedrop/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lipelix/agedrop.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "bin": {
+    "agedrop": "dist/cli/main.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.map",
+    "SECURITY.md",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "build:web": "vite build --config web/vite.config.ts",
+    "dev:web": "vite --config web/vite.config.ts",
+    "test:web": "playwright test"
+  },
+  "dependencies": {
+    "age-encryption": "^0.3.1",
+    "smol-toml": "^1.9.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@scure/base": "^2.4.0",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.15.0",
+    "http_ece": "^1.2.1",
+    "prettier": "^3.10.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}

@@ -1,0 +1,27 @@
+name: Install the Go age CLI
+description: Pinned age release tarball, checked against its hash, added to PATH.
+inputs:
+  version:
+    description: age release tag
+    default: v1.3.2
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        AGE_VERSION: ${{ inputs.version }}
+      # The hashes belong to v1.3.2; a new version needs new hashes.
+      run: |
+        case "$(uname -m)" in
+          aarch64|arm64) arch=arm64; sum=6b8dc4333c53a5a57c9e5834e3a48f92605d7154014cd07269ff3327db5d37f4 ;;
+          x86_64) arch=amd64; sum=cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10 ;;
+          *) echo "unsupported architecture $(uname -m)"; exit 1 ;;
+        esac
+        tarball="age-${AGE_VERSION}-linux-${arch}.tar.gz"
+        curl -fsSL --retry 3 -o "$RUNNER_TEMP/$tarball" \
+          "https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/${tarball}"
+        echo "${sum}  $RUNNER_TEMP/$tarball" | sha256sum -c -
+        mkdir -p "$RUNNER_TEMP/age"
+        tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP/age" --strip-components=1
+        echo "$RUNNER_TEMP/age" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/age/age" --version

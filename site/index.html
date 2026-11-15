@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>agedrop: secrets in git that your agents can ask for, never read</title>
+    <meta
+      name="description"
+      content="agedrop keeps every secret as an age-encrypted file in your git repo. Add secrets with public keys only. Agents file requests and never see the value. No server, no database."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      (() => {
+        try {
+          const t = localStorage.getItem("agedrop-theme");
+          if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+        } catch {
+          /* storage blocked: stay on auto */
+        }
+      })();
+    </script>
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#a9bdd6" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1424" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Courier+Prime:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <main id="main">
+      <!-- Envelope front: hero -->
+      <section class="front" id="top" aria-labelledby="hero-title">
+        <div class="envelope">
+          <nav class="return" aria-label="Primary">
+            <a class="return__brand" href="#top">
+              <svg class="return__mark" viewBox="0 0 32 24" aria-hidden="true">
+                <rect x="1.5" y="1.5" width="29" height="21" rx="2" />
+                <path d="M2 3 16 14 30 3" />
+                <circle cx="16" cy="14" r="3.2" />
+              </svg>
+              agedrop
+            </a>
+            <ul class="return__links">
+              <li><a href="#how">How it works</a></li>
+              <li><a href="#open-source">Open source</a></li>
+              <li><a href="#faq">FAQ</a></li>
+            </ul>
+          </nav>
+
+          <div class="postage">
+            <a class="stamp" href="https://github.com/lipelix/agedrop">
+              <span class="stamp__value stamp__value--word">GitHub</span>
+              <span class="stamp__fine">follow the repo</span>
+            </a>
+            <svg class="postmark" viewBox="0 0 220 120" role="img" aria-labelledby="postmark-t">
+              <title id="postmark-t">Draft spec v0 · first release in progress</title>
+              <defs>
+                <path id="pm-ring" d="M160 60 m-44 0 a44 44 0 1 1 88 0 a44 44 0 1 1 -88 0" />
+              </defs>
+              <path class="postmark__wave" d="M4 30 q12 -8 24 0 t24 0 t24 0 t24 0" />
+              <path class="postmark__wave" d="M4 48 q12 -8 24 0 t24 0 t24 0 t24 0" />
+              <path class="postmark__wave" d="M4 66 q12 -8 24 0 t24 0 t24 0 t24 0" />
+              <path class="postmark__wave" d="M4 84 q12 -8 24 0 t24 0 t24 0 t24 0" />
+              <circle cx="160" cy="60" r="52" />
+              <circle cx="160" cy="60" r="34" />
+              <text class="postmark__ring">
+                <textPath href="#pm-ring">DRAFT SPEC V0 · FIRST RELEASE IN PROGRESS ·</textPath>
+              </text>
+              <text class="postmark__mid" x="160" y="57" text-anchor="middle">AGEDROP</text>
+              <text class="postmark__mid" x="160" y="72" text-anchor="middle">.DEV</text>
+            </svg>
+          </div>
+
+          <div class="registered" aria-hidden="true">
+            <span class="registered__r">R</span>
+            <span class="registered__body">
+              <span class="registered__kind">Sealed with age</span>
+              <svg class="registered__code" viewBox="0 0 120 26" preserveAspectRatio="none">
+                <path
+                  d="M2 0v26M5 0v26M7 0v26M11 0v26M13 0v26M18 0v26M20 0v26M22 0v26M27 0v26M31 0v26M33 0v26M36 0v26M41 0v26M43 0v26M47 0v26M49 0v26M52 0v26M57 0v26M59 0v26M62 0v26M66 0v26M68 0v26M73 0v26M75 0v26M77 0v26M82 0v26M86 0v26M88 0v26M91 0v26M95 0v26M97 0v26M102 0v26M104 0v26M107 0v26M111 0v26M113 0v26M118 0v26"
+                />
+              </svg>
+              <span class="registered__no">RR 0001 AGE V1</span>
+            </span>
+          </div>
+
+          <div class="window">
+            <p class="window__to">To: the machines that need it</p>
+            <h1 id="hero-title" class="window__title">Agents ask for secrets. They never see them.</h1>
+          </div>
+
+          <div class="front__body">
+            <p class="front__lede">
+              agedrop keeps every secret as an <a href="https://age-encryption.org">age</a>-encrypted file in your git
+              repo. Anyone with the public keys can add one. Only the machines that run it can read it. No server, no
+              database, no lock-in.
+            </p>
+            <div class="front__actions">
+              <a class="btn" href="#how">See how it works</a>
+              <a class="front__link" href="https://github.com/lipelix/agedrop/blob/main/SPEC.md">
+                Read the spec
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h11M8.5 3.5 13 8l-4.5 4.5" /></svg>
+              </a>
+            </div>
+            <p class="front__meta">MIT licensed · open format · decrypts with the stock <code>age</code> CLI</p>
+          </div>
+
+          <figure
+            class="front__term"
+            aria-label="Terminal: an agent requests a secret, the owner fulfils it, the server runs with it"
+          >
+            <figcaption class="front__term-head">
+              <span>~/infra · carbon copy</span>
+              <span class="front__term-chip">sealed</span>
+            </figcaption>
+            <pre class="carbon"><code><span class="cm"># the agent hits a missing key and asks for it</span>
+<span class="hp">agent $</span> <span class="hc">agedrop</span> <span class="hs">request</span> <span class="ha">mini/hq</span> <span class="ha">VAPID_PRIVATE_KEY</span> \
+          <span class="hf">--reason</span> <span class="hq">"Web Push key for plan #50"</span>
+<span class="hk">✓</span> <span class="ho">filed request</span> <span class="ha">r7k2</span> <span class="ho">→</span> <span class="ha">requests/r7k2.toml</span>
+
+<span class="cm"># you answer it, from a laptop or your phone</span>
+<span class="hp">you $</span> <span class="hc">agedrop</span> <span class="hs">fulfil</span> <span class="ha">r7k2</span>
+<span class="ho">value:</span> <span class="hm">••••••••••••••••</span>
+<span class="hk">✓</span> <span class="ho">encrypted to</span> <span class="ha">libor</span><span class="ho">,</span> <span class="ha">server</span>
+  <span class="ha">secrets/mini/hq/VAPID_PRIVATE_KEY.age</span>
+
+<span class="cm"># the server decrypts at start, nobody else can</span>
+<span class="hp">mini $</span> <span class="hc">agedrop</span> <span class="hs">exec</span> <span class="ha">mini/hq</span> <span class="hf">--</span> <span class="hc">docker</span> <span class="hs">compose up</span> <span class="hf">-d</span></code></pre>
+          </figure>
+        </div>
+      </section>
+
+      <!-- Envelope back: the flap opens on scroll -->
+      <section class="opening" aria-hidden="true">
+        <div class="back js-back">
+          <div class="back__interior"></div>
+          <div class="back__letter">
+            <p class="back__letter-to">Enclosed: how agedrop works</p>
+            <span class="back__lines"></span>
+            <span class="back__lines"></span>
+            <span class="back__lines back__lines--short"></span>
+          </div>
+          <div class="back__pocket"></div>
+          <div class="back__flap"></div>
+        </div>
+      </section>
+
+      <!-- The letter: problem + how it works -->
+      <article class="letter" aria-labelledby="problem-title">
+        <header class="letter__head">
+          <h2 id="problem-title" class="h2">Secrets end up everywhere except somewhere safe.</h2>
+          <p class="letter__intro">
+            One home server, ten <code>.env</code> files, no backup. agedrop started as the fix for exactly that.
+          </p>
+        </header>
+
+        <ul class="pains">
+          <li>
+            <h3 class="pain__name">Scattered</h3>
+            <p>
+              Values live in loose <code>.env</code> files and secret folders on each machine. Lose the disk, lose the
+              keys. There is no history and no backup.
+            </p>
+          </li>
+          <li>
+            <h3 class="pain__name">Hand-copied</h3>
+            <p>
+              Moving a key from laptop to server means pasting it into a terminal, a chat or a note. Every copy is
+              another place it can leak.
+            </p>
+          </li>
+          <li>
+            <h3 class="pain__name">Agents stall</h3>
+            <p>
+              An AI coding session needs an API key, writes "owner, please add this secret" and stops. Hours later it is
+              still waiting, or worse, someone pastes the value into the chat.
+            </p>
+          </li>
+        </ul>
+
+        <section class="route" id="how" aria-labelledby="how-title">
+          <h2 id="how-title" class="h2">How it works</h2>
+          <p class="route__intro">Four steps, all of them plain files in git.</p>
+
+          <ol class="steps">
+            <li class="step">
+              <div class="step__text">
+                <h3 class="step__title"><span class="step__n">1</span> Say who may read what</h3>
+                <p>
+                  Each machine, CI runner and owner has an age key pair. Public keys go in <code>recipients/</code>.
+                  Scopes in <code>agedrop.toml</code> decide which keys can open which secrets. Owners can always open
+                  everything, so a human can always rekey.
+                </p>
+              </div>
+              <pre class="carbon"><code><span class="cm"># agedrop.toml</span>
+<span class="hh">[recipients]</span>
+<span class="hy">owners</span> <span class="ho">=</span> [<span class="hq">"libor"</span>]
+<span class="hy">mini</span>   <span class="ho">=</span> [<span class="hq">"server"</span>]
+<span class="hy">ci</span>     <span class="ho">=</span> [<span class="hq">"github-actions"</span>]
+
+<span class="hh">[scopes."mini/hq"]</span>
+<span class="hy">recipients</span> <span class="ho">=</span> [<span class="hq">"owners"</span>, <span class="hq">"mini"</span>]</code></pre>
+            </li>
+            <li class="step">
+              <div class="step__text">
+                <h3 class="step__title"><span class="step__n">2</span> An agent files a request</h3>
+                <p>
+                  A script or an AI agent that needs a value writes a small request file: scope, name, reason, and
+                  optionally how to generate it. The file holds no secret, so an agent can safely commit it.
+                </p>
+              </div>
+              <pre class="carbon"><code><span class="cm"># requests/r7k2.toml</span>
+<span class="hy">scope</span>        <span class="ho">=</span> <span class="hq">"mini/hq"</span>
+<span class="hy">name</span>         <span class="ho">=</span> <span class="hq">"VAPID_PRIVATE_KEY"</span>
+<span class="hy">reason</span>       <span class="ho">=</span> <span class="hq">"Web Push key for plan #50"</span>
+<span class="hy">requested_by</span> <span class="ho">=</span> <span class="hq">"hq plan session #52"</span>
+<span class="hy">generate</span>     <span class="ho">=</span> <span class="hq">"openssl ecparam -genkey …"</span></code></pre>
+            </li>
+            <li class="step">
+              <div class="step__text">
+                <h3 class="step__title"><span class="step__n">3</span> You answer it</h3>
+                <p>
+                  Paste the value in the CLI or on a static web page. It is encrypted on your device to the scope's
+                  public keys, and the same commit deletes the request. Writing needs no private key at all, so CI and
+                  teammates can add secrets too.
+                </p>
+              </div>
+              <pre
+                class="carbon"
+              ><code><span class="hp">$</span> <span class="hc">agedrop</span> <span class="hs">fulfil</span> <span class="ha">r7k2</span>
+<span class="ho">value:</span> <span class="hm">••••••••••••</span>
+<span class="hk">✓</span> <span class="ha">secrets/mini/hq/VAPID_PRIVATE_KEY.age</span>
+<span class="hk">✓</span> <span class="ho">removed</span> <span class="ha">requests/r7k2.toml</span>
+<span class="hp">$</span> <span class="hc">git</span> <span class="hs">push</span></code></pre>
+            </li>
+            <li class="step">
+              <div class="step__text">
+                <h3 class="step__title"><span class="step__n">4</span> The machine runs with it</h3>
+                <p>
+                  The server pulls the repo and decrypts with its own key, straight into a process environment or an env
+                  file. The agent that asked gets a working service, never the value.
+                </p>
+              </div>
+              <pre
+                class="carbon"
+              ><code><span class="hp">$</span> <span class="hc">agedrop</span> <span class="hs">exec</span> <span class="ha">mini/hq</span> <span class="hf">--</span> <span class="hc">docker</span> <span class="hs">compose up</span> <span class="hf">-d</span>
+<span class="hp">$</span> <span class="hc">agedrop</span> <span class="hs">pull</span> <span class="ha">ci/deploy</span> <span class="hf">--env</span> <span class="ha">.env.deploy</span>
+<span class="hp">$</span> <span class="hc">agedrop</span> <span class="hs">ls</span>
+<span class="ho">mini/hq    VAPID_PRIVATE_KEY   2 min ago   libor</span>
+<span class="ho">mini/hq    DATABASE_URL        12 days     libor</span>
+<span class="ho">ci/deploy  CF_API_TOKEN       </span> <span class="tw">stale · run rekey</span></code></pre>
+            </li>
+          </ol>
+        </section>
+      </article>
+
+      <!-- Inside of the envelope: open format -->
+      <section class="inside" aria-labelledby="inside-title">
+        <div class="inside__wrap">
+          <div class="inside__copy">
+            <h2 id="inside-title" class="h2 h2--light">Your secrets outlive the tool.</h2>
+            <p>
+              Every secret is one armored age file. Delete agedrop tomorrow and the stock <code>age</code> CLI still
+              opens all of it. Git gives you backup, history and a record of who changed what. There is nothing to host
+              and nothing to keep alive.
+            </p>
+            <dl class="facts">
+              <div>
+                <dt>Storage</dt>
+                <dd>your git repo</dd>
+              </div>
+              <div>
+                <dt>Server</dt>
+                <dd>none</dd>
+              </div>
+              <div>
+                <dt>Format</dt>
+                <dd>age v1, armored</dd>
+              </div>
+              <div>
+                <dt>License</dt>
+                <dd>MIT</dd>
+              </div>
+            </dl>
+          </div>
+          <div class="inside__code">
+            <pre class="slip"><code><span class="hd">infra-secrets/</span>
+<span class="ho">├──</span> agedrop.toml
+<span class="ho">├──</span> agedrop.lock
+<span class="ho">├──</span> <span class="hd">recipients/</span>
+<span class="ho">│   ├──</span> libor.pub
+<span class="ho">│   └──</span> server.pub
+<span class="ho">├──</span> <span class="hd">secrets/</span>
+<span class="ho">│   └──</span> <span class="hd">mini/hq/</span>
+<span class="ho">│       ├──</span> DATABASE_URL.age
+<span class="ho">│       └──</span> VAPID_PRIVATE_KEY.age
+<span class="ho">└──</span> <span class="hd">requests/</span></code></pre>
+            <pre class="slip"><code><span class="cm"># no agedrop installed? still fine</span>
+<span class="hp">$</span> <span class="hc">age</span> <span class="hf">-d</span> <span class="hf">-i</span> <span class="ha">~/.config/agedrop/identity</span> \
+    <span class="ha">secrets/mini/hq/DATABASE_URL.age</span></code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Open source -->
+      <section class="rates sheet" id="open-source" aria-labelledby="open-source-title">
+        <h2 id="open-source-title" class="h2">Free and open source.</h2>
+        <p class="rates__intro">
+          agedrop is MIT licensed. There are no plans, seats or limits: everything runs from your repo and your own
+          devices.
+        </p>
+
+        <div class="tariff">
+          <div class="tariff__row tariff__row--main">
+            <div class="tariff__service">
+              <h3>What you get</h3>
+            </div>
+            <ul class="tariff__what">
+              <li>CLI: add, request, fulfil, pull, exec, rekey</li>
+              <li><a href="https://app.agedrop.dev">Static web UI</a> to answer requests from any device</li>
+              <li>Unlimited secrets, machines and people</li>
+              <li>Request alerts through your own CI (ntfy, webhook)</li>
+              <li>Open format: plain age files, MIT license</li>
+            </ul>
+            <div class="tariff__rate">
+              <p class="tariff__price">Free <span>MIT license</span></p>
+              <a class="btn" href="https://github.com/lipelix/agedrop">Follow on GitHub</a>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="carriers__title">What the alternatives ask for</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Tool</th>
+                <th scope="col">Free tier</th>
+                <th scope="col">Catch</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Infisical Cloud</th>
+                <td>5 identities, people and machines counted together</td>
+                <td>Pro is $20 per identity per month</td>
+              </tr>
+              <tr>
+                <th scope="row">Phase Cloud</th>
+                <td>5 users or service accounts, 3 apps</td>
+                <td>24 h audit log on free</td>
+              </tr>
+              <tr>
+                <th scope="row">Self-hosted vault</th>
+                <td>Software is free</td>
+                <td>A server to patch and back up; services fail when it is down</td>
+              </tr>
+              <tr>
+                <th scope="row">SOPS + age</th>
+                <td>Free</td>
+                <td>Adding a value needs a private key; no request flow</td>
+              </tr>
+              <tr class="is-us">
+                <th scope="row">agedrop</th>
+                <td>Everything in the repo, no limits</td>
+                <td>No read audit: git shows who changed a secret, not who read it</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="fine">Vendor pricing as published on infisical.com and phase.dev, checked 9 November 2026.</p>
+      </section>
+
+      <!-- FAQ -->
+      <section class="questions sheet" id="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title" class="h2">Questions</h2>
+        <div class="qa-list">
+          <details class="qa">
+            <summary>Can I use it today?</summary>
+            <p>
+              Not yet. The file format is a public draft, and the CLI and web UI are being built in the open. The first
+              release, v0.1, ships the CLI, requests, rekey and the web UI. Follow the repo to hear when it lands.
+            </p>
+          </details>
+          <details class="qa">
+            <summary>Where is the server?</summary>
+            <p>
+              There isn't one. Your git host stores the files, your devices encrypt, and each machine decrypts with its
+              own key. Request alerts go out through your own CI, for example to ntfy or a webhook.
+            </p>
+          </details>
+          <details class="qa">
+            <summary>What does an agent actually get?</summary>
+            <p>
+              The right to write a request file. It never gets the value, the private key, or a token that can read
+              either. Once you answer, the service it was working on starts with the secret in its environment.
+            </p>
+          </details>
+          <details class="qa">
+            <summary>Someone with push access could replace a secret, right?</summary>
+            <p>
+              Yes. They can't read it, but they could overwrite it. Protect <code>secrets/</code> with branch rules or
+              pull requests and signed commits. <code>agedrop ls</code> shows who changed each secret last.
+            </p>
+          </details>
+          <details class="qa">
+            <summary>What happens when I remove a laptop or a person?</summary>
+            <p>
+              Remove their public key and run <code>agedrop rekey</code>. Old commits stay readable with the old key, so
+              rekey prints the list of secrets you should rotate.
+            </p>
+          </details>
+          <details class="qa">
+            <summary>What does agedrop not protect against?</summary>
+            <p>
+              Another process running as the same user on a machine that holds a key. It also has no read audit and does
+              not issue short-lived credentials. If you need those, you need a server, and agedrop is not one.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <!-- Closing -->
+      <section class="closing" aria-labelledby="closing-title">
+        <div class="closing__card">
+          <h2 id="closing-title" class="h2">Put your secrets where your code already is.</h2>
+          <a class="btn" href="https://github.com/lipelix/agedrop">Follow agedrop on GitHub</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>agedrop · Secrets as age files in git.</p>
+      <fieldset class="theme">
+        <legend class="theme__legend">Theme</legend>
+        <div class="theme__options">
+          <label class="theme__option"><input type="radio" name="theme" value="light" />Light</label>
+          <label class="theme__option"><input type="radio" name="theme" value="dark" />Dark</label>
+          <label class="theme__option"><input type="radio" name="theme" value="auto" checked />Auto</label>
+        </div>
+      </fieldset>
+      <p class="footer__links">
+        <a href="https://app.agedrop.dev">Web app</a>
+        <a href="https://github.com/lipelix/agedrop/blob/main/SPEC.md">Spec</a>
+        <a href="https://github.com/lipelix/agedrop">GitHub</a>
+        <a href="https://github.com/lipelix/agedrop/blob/main/LICENSE">MIT</a>
+      </p>
+    </footer>
+
+    <script src="main.js" defer></script>
+  </body>
+</html>

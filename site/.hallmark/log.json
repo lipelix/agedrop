@@ -1,0 +1,19 @@
+[
+  {
+    "date": "2026-11-11",
+    "macrostructure": "custom (impeccable direction: registered security envelope)",
+    "theme": "custom",
+    "theme_axes": "light (cool paper on blue-grey tint) / typewriter + wide grotesk / cool ultramarine with red-orange label",
+    "enrichment": "none",
+    "brief": "agedrop.dev landing, owner picked variant B2 (envelope style, Cobalt copy)"
+  },
+  {
+    "date": "2026-11-10",
+    "macrostructure": "Narrative Workflow",
+    "theme": "Cobalt",
+    "enrichment": "none",
+    "nav": "N1b",
+    "footer": "Ft2",
+    "brief": "agedrop.dev landing: teaser, problem, how it works, pricing"
+  }
+]

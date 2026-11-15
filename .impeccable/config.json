@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "site/index.html"
+        ],
+        "createdAt": "2026-11-11T20:27:15.172Z",
+        "reason": "assistant triage: inner boxes are <pre> code blocks (carbon slips) on the letter sheet and dark band, content not a card layout"
+      }
+    ]
+  }
+}

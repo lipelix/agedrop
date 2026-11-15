@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # The lipelix Actions budget is exhausted: the repo variable RUNNER_LABELS
+    # (["self-hosted","lipelix"]) routes the job to the self-hosted runners.
+    runs-on: ${{ vars.RUNNER_LABELS && fromJSON(vars.RUNNER_LABELS) || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: ./.github/actions/install-age
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run build:web
+
+  web:
+    # The web UI in WebKit (iPhone) and Chromium. The self-hosted runners have no Docker daemon for
+    # job containers but run as root on Ubuntu, so Playwright installs the browsers and their libraries.
+    runs-on: ${{ vars.RUNNER_LABELS && fromJSON(vars.RUNNER_LABELS) || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: ./.github/actions/install-age
+
+      - run: npm ci
+      - name: Install WebKit and Chromium
+        run: |
+          if [ "$(id -u)" = 0 ]; then npx playwright install --with-deps webkit chromium
+          else sudo -E env "PATH=$PATH" npx playwright install-deps webkit chromium && npx playwright install webkit chromium
+          fi
+      - run: npm run test:web
+        env:
+          CI: "true"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

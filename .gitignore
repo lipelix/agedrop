@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+*.identity
+!recipients/*.identity.age
+dist-web/
+dist-site/
+test-results/
+playwright-report/
+
+# OpenTofu
+infra/.terraform/
+infra/*.tfstate*
+infra/env.auto.tfvars

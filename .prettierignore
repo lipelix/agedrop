@@ -1,0 +1,10 @@
+dist/
+node_modules/
+site/
+.impeccable/
+package-lock.json
+*.md
+dist-web/
+dist-site/
+test-results/
+playwright-report/
