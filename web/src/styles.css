@@ -331,15 +331,24 @@ select {
   background-repeat: no-repeat;
 }
 
+/* Every character a dot (web/dot-font.ts). Not -webkit-text-security: Safari's AutoFill takes a field
+   with it for a password field, offers saved sign-ins for the field before it and offers to save the
+   value. "block": until the font is there, text is invisible rather than readable. */
+@font-face {
+  font-family: "agedrop dots";
+  src: url("./dots.ttf") format("truetype");
+  font-display: block;
+}
+
 .masked {
-  -webkit-text-security: disc;
+  /* Important: no field rule may bring a readable font back. */
+  font-family: "agedrop dots" !important;
+  letter-spacing: 0.05em;
 }
 
 textarea.masked {
   /* Masked multi-line text still shows its shape, never its characters. */
-  color: transparent;
-  text-shadow: 0 0 0 var(--muted);
-  -webkit-text-security: disc;
+  color: var(--muted);
 }
 
 .hint {
