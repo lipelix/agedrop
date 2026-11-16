@@ -396,7 +396,10 @@ branch) and a GitHub **fine-grained personal access token** that covers that rep
 before it stores anything, so a token GitHub refuses, or one that does not cover the repository, is never
 kept. The token is kept in `sessionStorage`, or in `localStorage` when "Remember on this device" is
 ticked, and is sent only to `https://api.github.com`. There is no OAuth: GitHub's token exchange needs a
-client secret and a server.
+client secret and a server. The form links to GitHub's new-token page, filled in with the name
+`agedrop web (<owner>)`, *Contents: write*, the owner and a 90-day expiry: token names are unique per GitHub
+account and a token belongs to one owner, so the name says which owner it serves, and a second repository of
+that owner widens the same token instead of making another.
 
 A device can be signed in to several repositories. The name of the open repository in the top bar leads
 to **Repositories**, which lists them, opens one with a tap, removes one, and adds the next with the same

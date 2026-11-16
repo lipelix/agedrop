@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { encryptSecret, parseLock } from "../src/index.js";
 import { GitHubClient, GitHubError } from "../web/src/github.js";
+import { tokenUrl } from "../web/src/session.js";
 import { loadSnapshot } from "../web/src/snapshot.js";
 import {
   commitWrite,
@@ -216,5 +217,18 @@ describe("web values", () => {
     const a = generateValue();
     expect(a).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(generateValue()).not.toBe(a);
+  });
+});
+
+describe("web token link", () => {
+  it("names the token after its owner, since names are unique per account", () => {
+    const params = (repository: string): URLSearchParams =>
+      new URL(tokenUrl(repository)).searchParams;
+    expect(params("lipelix/secrets").get("name")).toBe("agedrop web (lipelix)");
+    expect(params("lipelix/secrets").get("target_name")).toBe("lipelix");
+    expect(params("lipelix/secrets").get("contents")).toBe("write");
+    expect(params("some-org/vault").get("name")).toBe("agedrop web (some-org)");
+    expect(params("").get("name")).toBe("agedrop web");
+    expect(params("").has("target_name")).toBe(false);
   });
 });

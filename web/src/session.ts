@@ -105,11 +105,15 @@ export function clearSessions(): void {
   }
 }
 
-/** GitHub's new fine-grained token page, filled in as far as GitHub's URL parameters allow. */
+/**
+ * GitHub's new fine-grained token page, filled in as far as GitHub's URL parameters allow. Token names are
+ * unique per GitHub account and a token belongs to one owner, so the name carries the owner: one token per
+ * owner, widened to more repositories rather than created again.
+ */
 export function tokenUrl(repository: string): string {
   const owner = repository.split("/")[0] ?? "";
   const params = new URLSearchParams({
-    name: "agedrop web",
+    name: owner === "" ? "agedrop web" : `agedrop web (${owner})`,
     description: `agedrop web UI for ${repository || "my secrets repositories"}`,
     expires_in: "90",
     contents: "write",

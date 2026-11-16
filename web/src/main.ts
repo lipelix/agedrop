@@ -518,7 +518,17 @@ function repositoryForm(options: {
       {},
       "Only your secrets repositories, with Contents: read and write, and an expiry. One token can cover several repositories of the same owner. ",
       link,
-      ".",
+      ". If GitHub says the name is taken, you already have a token for this owner: ",
+      h(
+        "a",
+        {
+          href: "https://github.com/settings/personal-access-tokens",
+          target: "_blank",
+          rel: "noopener noreferrer",
+        },
+        "edit it",
+      ),
+      ", add this repository under Repository access, and paste it here.",
     ),
   );
   const sourceField = field(
