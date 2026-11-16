@@ -683,9 +683,30 @@ function confirmStep(ctx: OwnerContext, current: Wizard): HTMLElement {
         h(
           "p",
           {},
-          "This is the owner's private key. It is shown only now. With it you can read every secret using the age CLI and set up a new passkey if this one is lost. Without it, a lost passkey means a lost key. Keep it on paper or in a password manager, never in the repository.",
+          `This is the identity file of ${current.name}, holding its private key. It is shown only now. With it you can read every secret using the age CLI and set up a new passkey if this one is lost. Without it, a lost passkey means a lost key.`,
         ),
-        h("pre", { class: "identity-file" }, h("code", {}, owner.file)),
+        identityFileBlock(owner.file),
+        h(
+          "ul",
+          { class: "identity-legend" },
+          h(
+            "li",
+            {},
+            h("code", {}, "# public key"),
+            ` is a comment: the address secrets are encrypted to. It is not secret and goes into recipients/${current.name}.pub.`,
+          ),
+          h(
+            "li",
+            {},
+            h("code", {}, "AGE-SECRET-KEY-1…"),
+            " is the private key. Anyone who has it can read every secret.",
+          ),
+        ),
+        h(
+          "p",
+          {},
+          "Store the whole file with Copy (into a password manager) or Download, or on paper. Not as a screenshot, which syncs to photo libraries, and never in the repository.",
+        ),
         h(
           "div",
           { class: "value-actions" },
@@ -764,5 +785,24 @@ function confirmStep(ctx: OwnerContext, current: Wizard): HTMLElement {
     ),
     error,
     submit,
+  );
+}
+
+/**
+ * The identity file, line by line: comments dimmed, the private key line marked. The text stays the file's
+ * exact text, so selecting it copies the same as Copy.
+ */
+function identityFileBlock(file: string): HTMLElement {
+  const lines = file.split(/(?<=\n)/);
+  return h(
+    "pre",
+    { class: "identity-file" },
+    h(
+      "code",
+      {},
+      lines.map((line) =>
+        h("span", { class: line.startsWith("#") ? "identity-comment" : "identity-secret" }, line),
+      ),
+    ),
   );
 }

@@ -105,6 +105,10 @@ test.describe("with a fake PRF authenticator", () => {
     expect(backup).toMatch(
       /^# created: \S+Z\n# public key: (age1[0-9a-z]+)\nAGE-SECRET-KEY-1[0-9A-Z]+\n$/,
     );
+    // The private key line is marked, and the legend says which line is which.
+    await expect(page.locator(".identity-secret")).toHaveText(/^AGE-SECRET-KEY-1/);
+    await expect(page.locator(".identity-comment")).toHaveCount(2);
+    await expect(page.getByText("is the private key. Anyone who has it")).toBeVisible();
     const identity = /AGE-SECRET-KEY-1[0-9A-Z]+/.exec(backup)?.[0] ?? "";
     const recipient = /# public key: (age1[0-9a-z]+)/.exec(backup)?.[1] ?? "";
     const commitButton = page.getByRole("button", { name: "Commit" });

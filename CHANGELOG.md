@@ -24,6 +24,8 @@ the CLI; such changes are marked **Breaking**.
   account; a taken name means a token for that owner exists, and the form says to widen it instead.
 - Web UI: a store fresh from `init`, whose owner has no key yet, shows "Set up the key of <owner>" with a
   button to the Owner page instead of listing it as a problem.
+- Web UI: the owner backup marks the private key line, dims the comments, says that `# public key` is not
+  secret, and asks to store the file with Copy or Download rather than a screenshot.
 
 ## [0.1.0] - 2026-11-14
 
