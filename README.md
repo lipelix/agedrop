@@ -67,7 +67,7 @@ you about new requests through ntfy, a webhook or Web Push. See [docs/agents.md]
 ### Web UI
 
 [app.agedrop.dev](https://app.agedrop.dev) is a static page: no agedrop server, and no third-party code. Paste a
-fine-grained GitHub token scoped to one repository, then list secrets, add them and answer requests from a phone.
+fine-grained GitHub token scoped to your secrets repositories, then list secrets, add them and answer requests from a phone.
 Reading a value in the browser uses an owner identity wrapped by a passkey ([docs/owner-passkey.md](docs/owner-passkey.md)).
 
 ## Commands

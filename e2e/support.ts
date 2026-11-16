@@ -15,8 +15,23 @@ export interface Sent {
   readonly body: string;
 }
 
-/** Serves GitHub from `github` and records every request the page sends, to any host. */
-export async function connect(page: Page, github: FakeGitHub): Promise<Sent[]> {
+/**
+ * Serves GitHub from `github`, one double per repository, and records every request the page sends,
+ * to any host. A request for a repository none of them holds goes to the first, which answers 404.
+ */
+export async function connect(page: Page, github: FakeGitHub | FakeGitHub[]): Promise<Sent[]> {
+  const doubles = Array.isArray(github) ? github : [github];
+  const [first] = doubles;
+  if (first === undefined) throw new Error("connect needs a GitHub double");
+  const pick = (url: string, body: string): FakeGitHub =>
+    doubles.find((double) => {
+      const path = decodeURIComponent(new URL(url).pathname);
+      return (
+        path === `/repos/${double.repository}` ||
+        path.startsWith(`/repos/${double.repository}/`) ||
+        body.includes(`"repositoryNameWithOwner":"${double.repository}"`)
+      );
+    }) ?? first;
   const sent: Sent[] = [];
   page.on("request", (request) => {
     sent.push({ url: request.url(), headers: request.headers(), body: request.postData() ?? "" });
@@ -27,7 +42,7 @@ export async function connect(page: Page, github: FakeGitHub): Promise<Sent[]> {
       await route.fulfill({ status: 204, headers: CORS });
       return;
     }
-    const result = github.handle(
+    const result = pick(request.url(), request.postData() ?? "").handle(
       request.method(),
       request.url(),
       await request.allHeaders(),

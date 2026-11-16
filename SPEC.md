@@ -388,10 +388,22 @@ also read values there, after unlocking an identity wrapped by a passkey (see §
 ### Sign-in
 
 The page asks for the repository (`owner/name`), an optional branch (default: the repository's default
-branch) and a GitHub **fine-grained personal access token** limited to that repository with
-*Contents: read and write* (GitHub adds *Metadata: read*). The token is kept in `sessionStorage`, or in
-`localStorage` when "Remember on this device" is ticked, and is sent only to `https://api.github.com`.
-"Sign out" removes it. There is no OAuth: GitHub's token exchange needs a client secret and a server.
+branch) and a GitHub **fine-grained personal access token** that covers that repository with
+*Contents: read and write* (GitHub adds *Metadata: read*). The page reads the repository with the token
+before it stores anything, so a token GitHub refuses, or one that does not cover the repository, is never
+kept. The token is kept in `sessionStorage`, or in `localStorage` when "Remember on this device" is
+ticked, and is sent only to `https://api.github.com`. There is no OAuth: GitHub's token exchange needs a
+client secret and a server.
+
+A device can be signed in to several repositories. The name of the open repository in the top bar leads
+to **Repositories**, which lists them, opens one with a tap, removes one, and adds the next with the same
+form. Every page shows one repository at a time, the open one; a tab keeps its own, so two tabs can work
+in two repositories. One fine-grained token can cover several repositories of an owner, so the form offers
+the token of a signed-in repository, of the same owner first, instead of asking for a new one. Each
+repository has its own branch and its own "Remember" choice. Changing repository locks an unlocked owner
+key and hides shown values. "Remove" forgets one repository on this device and "Sign out" forgets all of
+them; neither revokes the token on GitHub. When GitHub rejects a token, every repository signed in with
+it is removed and the page says which.
 
 Password managers may save the token, and the form tells them what it is: the repository field has
 `autocomplete="username"` and the token field `autocomplete="current-password"`. A saved entry (Safari's
@@ -411,7 +423,9 @@ prompt; the page neither asks for it nor prevents it.
 - **Requests**: the open requests, newest first. Each opens a fulfil form that shows its scope, name,
   reason, requester, date and `generate` hint. The hint is shown as text and never run. A notification links to
   `#/requests/<id>?repo=<owner/name>`: signed out, the sign-in form fills in that repository and opens the form
-  after sign-in; signed in to another repository, the page says so instead of showing a missing request.
+  after sign-in; signed in to that repository but with another one open, the page opens it and says so;
+  not signed in to it, the page says so instead of showing a missing request and offers to add it, and
+  opens the form once it is added.
 - **Owner**: set up an owner passkey, unlock with it or with the backup, and lock (see § Owner passkey).
   The inventory has a **Show** button on each secret.
 

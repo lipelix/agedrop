@@ -6,6 +6,17 @@ the CLI; such changes are marked **Breaking**.
 
 ## [Unreleased]
 
+### Added
+
+- Web UI: sign in to several repositories on one device. The repository name in the top bar opens
+  **Repositories**, which switches, adds and removes them; a signed-in repository's token can serve the next
+  one, since a fine-grained token can cover several repositories of an owner. A notification's link opens its
+  repository by itself when the device is signed in to it.
+
+### Changed
+
+- Web UI: the sign-in form checks the token against GitHub before storing it.
+
 ## [0.1.0] - 2026-11-14
 
 First release. The format is draft v0 ([SPEC.md](SPEC.md)).
