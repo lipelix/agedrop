@@ -1073,6 +1073,17 @@ form > .button[type="submit"] {
   border-radius: 0.2rem;
 }
 
+.save-backup {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--paper-shade);
+}
+
+.save-backup .field {
+  margin-bottom: 0.6rem;
+}
+
 .identity-legend {
   margin: 0.5rem 0;
   padding-left: 1.1rem;

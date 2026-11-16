@@ -87,6 +87,8 @@ describe("owner identity files", () => {
     const key = await throwawayKey();
     const file = formatIdentityFile(key.identity, key.recipient, new Date("2026-11-14T00:00:00Z"));
     expect((await readOwnerIdentity(file)).recipient).toBe(key.recipient);
+    // A file pasted into a one-line password field, which drops the newlines.
+    expect((await readOwnerIdentity(file.replace(/\n/g, ""))).recipient).toBe(key.recipient);
     expect((await readOwnerIdentity(`  ${key.identity.toLowerCase()}  \n`)).identity).toBe(
       key.identity,
     );

@@ -402,3 +402,21 @@ bytes, since keys and certificates end with a newline on purpose. The web UI alr
 come from a one-line field. The format rule does not change: the plaintext is still stored as exact bytes. An
 env value that must end with a newline cannot come from the CLI; no such variable was found worth the
 exception, and a file-style name holds it.
+
+
+## 2026-11-16 — The owner backup can be saved in the browser's passwords
+
+**Context.** On the first real setup the owner stored the backup in iCloud Keychain by hand: open Passwords,
+add an entry for app.agedrop.dev, paste the key. Restoring would have meant the reverse. The sheet only
+offered Copy and Download, and the first attempt was a screenshot.
+
+**Decision.** The backup sheet holds a small username and password form, **Save in Passwords**: the
+username is `<name> owner key · <owner/repo>` (unlike the token entries, which are named `owner/name`) and
+the password is the `AGE-SECRET-KEY-1…` line, the only line needed to restore. Submitting it calls
+`navigator.credentials.store` where it exists (Chromium) and otherwise relies on the browser's prompt on
+submit (Safari), then replaces the form with where the entry went. **Unlock with the backup** became a
+username and password pair named the same way, so the browser fills it, and the key is read from a pasted
+file whose lines a one-line field joined. The page still asks for a second copy: the Keychain entry
+shares an Apple or Google account with the passkey, so losing that account loses both. Whether Safari offers
+to save a form whose values the page filled in is checked on a real iPhone; Copy and Download stay.
+
