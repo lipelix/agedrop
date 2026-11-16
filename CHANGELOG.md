@@ -22,6 +22,8 @@ the CLI; such changes are marked **Breaking**.
 - The CLI no longer prints Node's experimental-feature warning for X25519 on every command.
 - Web UI: the new-token link names the token `agedrop web (<owner>)`, since GitHub token names are unique per
   account; a taken name means a token for that owner exists, and the form says to widen it instead.
+- Web UI: a store fresh from `init`, whose owner has no key yet, shows "Set up the key of <owner>" with a
+  button to the Owner page instead of listing it as a problem.
 
 ## [0.1.0] - 2026-11-14
 

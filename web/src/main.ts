@@ -755,12 +755,47 @@ function notSetUpBox(snapshot: Snapshot): HTMLElement {
   );
 }
 
+/** Owners named in `agedrop.toml` with no `recipients/<name>.pub` yet: a store fresh from `init`. */
+function keylessOwners(snapshot: Snapshot): string[] {
+  const owners = snapshot.config?.groups.get("owners") ?? [];
+  return owners.filter((name) => !snapshot.recipientFiles.has(name));
+}
+
+/** Says that an owner has no key yet, and leads to the Owner page, which makes one. */
+function firstOwnerBox(names: readonly string[]): HTMLElement {
+  const first = names[0] ?? "";
+  return h(
+    "section",
+    { class: "not-set-up", "aria-labelledby": "first-owner-title" },
+    h("h2", { id: "first-owner-title" }, `Set up the key of ${first}`),
+    h(
+      "p",
+      {},
+      h("code", {}, "agedrop.toml"),
+      ` names ${names.join(", ")} as owner${names.length === 1 ? "" : "s"}, with no key yet. `,
+      "The Owner page makes the key, locks it with a passkey and shows its backup once. ",
+      "Adding secrets works once it is committed.",
+    ),
+    h("p", {}, h("a", { class: "button", href: "#/owner/setup" }, `Set up ${first}`)),
+  );
+}
+
 function problemsBox(snapshot: Snapshot): HTMLElement | HTMLElement[] | null {
-  // Without agedrop.toml, "agedrop.toml: missing" is said once, by the not-set-up box.
-  const problems = snapshot.configMissing
-    ? snapshot.problems.filter((problem) => problem !== "agedrop.toml: missing")
-    : snapshot.problems;
-  const notSetUp = snapshot.configMissing ? notSetUpBox(snapshot) : null;
+  // Without agedrop.toml, "agedrop.toml: missing" is said once, by the not-set-up box; an owner without
+  // a key is said once, by the first-owner box.
+  const keyless = keylessOwners(snapshot);
+  const said = new Set([
+    ...(snapshot.configMissing ? ["agedrop.toml: missing"] : []),
+    ...keyless.map(
+      (name) => `agedrop.toml: recipients.owners: "${name}" has no recipients/${name}.pub`,
+    ),
+  ]);
+  const problems = snapshot.problems.filter((problem) => !said.has(problem));
+  const notSetUp = snapshot.configMissing
+    ? notSetUpBox(snapshot)
+    : keyless.length > 0
+      ? firstOwnerBox(keyless)
+      : null;
   if (problems.length === 0) return notSetUp;
   const box = h(
     "section",
