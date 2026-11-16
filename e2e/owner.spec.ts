@@ -136,6 +136,35 @@ test.describe("with a fake PRF authenticator", () => {
     await expect(page.locator(".identity-file")).toHaveCount(0);
   });
 
+  test("a store fresh from init: the owner named in agedrop.toml gets its first key", async ({
+    page,
+  }) => {
+    // `agedrop init --owner owner` lists the owner before recipients/owner.pub exists.
+    const { github } = await webFixture();
+    github.files.delete("recipients/owner.pub");
+    await connect(page, github);
+    await signIn(page);
+    await page.goto("/#/owner/setup");
+    await expect(page.getByLabel("Owner name")).toHaveValue("owner");
+    await expect(
+      page.getByText(/New owner: a new key is made, with recipients\/owner.pub/),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Create the passkey" }).click();
+    await page.getByRole("button", { name: "Lock the key with the passkey" }).click();
+    await page.getByLabel("I stored this backup somewhere safe, off this repository").check();
+    await page.getByRole("button", { name: "Commit" }).click();
+
+    await expect(page.getByRole("status").filter({ hasText: "Committed." })).toContainText(
+      "chore(recipients): add owner owner with a passkey",
+    );
+    await expect(page.getByRole("heading", { name: "Unlocked as owner" })).toBeVisible();
+    expect([...(github.commits.at(-1)?.changed ?? [])].sort()).toEqual([
+      "recipients/owner.identity.age",
+      "recipients/owner.pub",
+    ]);
+  });
+
   test("unlocks with the backup, and hides a shown value after 30 seconds", async ({ page }) => {
     await page.clock.install();
     const { github, ownerIdentity } = await webFixture();
