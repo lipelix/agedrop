@@ -20,6 +20,8 @@ the CLI; such changes are marked **Breaking**.
   `--generate` path already did, so `agedrop fulfil <id> < token-file` stores the token without the file's
   newline. File-style values still keep their exact bytes.
 - The CLI no longer prints Node's experimental-feature warning for X25519 on every command.
+- Web UI: the new-token link names the token `agedrop web (<owner>)`, since GitHub token names are unique per
+  account; a taken name means a token for that owner exists, and the form says to widen it instead.
 
 ## [0.1.0] - 2026-11-14
 
