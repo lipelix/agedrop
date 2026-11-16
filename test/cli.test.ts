@@ -119,6 +119,38 @@ describe("agedrop add", () => {
     });
   });
 
+  it("removes trailing newlines from env-style values and keeps file-style bytes", async () => {
+    await withTempDir(async (dir) => {
+      const keys = await makeRepo(dir);
+      const read = async (name: string): Promise<string> =>
+        decryptSecretText(await readFile(join(dir, `secrets/host/app/${name}.age`), "utf8"), [
+          keys.owner,
+        ]);
+      let result = await runCli(["add", "host/app", "API_KEY"], {
+        cwd: dir,
+        home: dir,
+        stdin: "v4lue\r\n",
+      });
+      expect(result.code, result.stderr).toBe(0);
+      expect(result.stderr).toContain("removed the trailing newline from API_KEY");
+      expect(await read("API_KEY")).toBe("v4lue");
+
+      result = await runCli(["add", "host/app", "tls.key"], {
+        cwd: dir,
+        home: dir,
+        stdin: "pem\n",
+      });
+      expect(result.code, result.stderr).toBe(0);
+      expect(result.stderr).not.toContain("removed");
+      expect(await read("tls.key")).toBe("pem\n");
+
+      // Only newlines is an empty value.
+      result = await runCli(["add", "host/app", "OTHER"], { cwd: dir, home: dir, stdin: "\n\n" });
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("empty value");
+    });
+  });
+
   it("refuses values from arguments, bad names, empty and binary env values", async () => {
     await withTempDir(async (dir) => {
       await makeRepo(dir);

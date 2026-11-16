@@ -1,6 +1,6 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { LOCK_FILE, type SecretKind, secretKind, secretPath } from "../../names.js";
+import { LOCK_FILE, secretKind, secretPath } from "../../names.js";
 import { readOptional } from "../../node.js";
 import { isValidRequestId, parseRequest, requestPath, type SecretRequest } from "../../requests.js";
 import type { Command } from "../command.js";
@@ -10,7 +10,7 @@ import { runGenerate } from "../generate.js";
 import { commitPaths, inWorkTree, isTracked } from "../git.js";
 import { readHiddenLine } from "../input.js";
 import { openRepository, scopeOf } from "../repo.js";
-import { checkValue, readValue, storeSecret } from "../store.js";
+import { prepareValue, readValue, storeSecret } from "../store.js";
 
 export const fulfil: Command = {
   name: "fulfil",
@@ -47,8 +47,12 @@ the value and does not push.
     const kind = secretKind(request.name) ?? "file";
     describe(ctx, request, resolved.names);
 
-    const value = await obtainValue(ctx, request, kind, values.generate);
-    checkValue(ctx, request.name, kind, value);
+    const value = prepareValue(
+      ctx,
+      request.name,
+      kind,
+      await obtainValue(ctx, request, values.generate),
+    );
 
     const secret = secretPath(request.scope, request.name);
     const tracked = await isTracked(repo.root, file);
@@ -94,17 +98,9 @@ function describe(ctx: Context, request: SecretRequest, names: readonly string[]
 async function obtainValue(
   ctx: Context,
   request: SecretRequest,
-  kind: SecretKind,
   generate: boolean,
 ): Promise<Uint8Array> {
-  const run = async (command: string): Promise<Uint8Array> => {
-    const output = await runGenerate(ctx, command);
-    // Like $(…) in a shell: an env-style value loses the trailing newlines a command prints.
-    if (kind !== "env") return output;
-    let end = output.length;
-    while (end > 0 && (output[end - 1] === 0x0a || output[end - 1] === 0x0d)) end--;
-    return output.subarray(0, end);
-  };
+  const run = (command: string): Promise<Uint8Array> => runGenerate(ctx, command);
   const label = `${request.scope}/${request.name}`;
   if (generate) {
     if (request.generate === undefined)

@@ -27,6 +27,8 @@ describe("agedrop CLI end to end", () => {
         const ownerIdentityPath = join(home, ".config", "agedrop", "identity");
         expect((await stat(ownerIdentityPath)).mode & 0o777).toBe(0o600);
         expect(result.stdout).toMatch(/^age1[a-z0-9]+\n$/);
+        // Node's experimental X25519 notice is not shown to CLI users.
+        expect(result.stderr).not.toContain("ExperimentalWarning");
 
         result = await spawnCli(["keygen", "ci", "--kind", "ci", "--out", "-"], { cwd: repo, env });
         expect(result.code, result.stderr).toBe(0);

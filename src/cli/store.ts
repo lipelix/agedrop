@@ -17,24 +17,36 @@ export async function readValue(ctx: Context, prompt: string): Promise<Uint8Arra
     : readAll(ctx.stdin);
 }
 
+/** Removes trailing newlines (`\n`, `\r\n`), as shell `$(…)` does. */
+export function trimNewlines(value: Uint8Array): Uint8Array {
+  let end = value.length;
+  while (end > 0 && (value[end - 1] === 0x0a || value[end - 1] === 0x0d)) end--;
+  return value.subarray(0, end);
+}
+
 /**
- * Checks a value before it is stored: not empty, and for env-style names UTF-8 without NUL bytes.
- * Warns about a trailing newline, which is kept.
+ * Prepares a value before it is stored. An env-style value loses its trailing newlines, as with `$(…)`,
+ * since `echo` and files add one that no environment variable wants; it must then be UTF-8 without NUL
+ * bytes. A file-style value keeps its exact bytes. An empty value is an error.
  */
-export function checkValue(ctx: Context, name: string, kind: SecretKind, value: Uint8Array): void {
+export function prepareValue(
+  ctx: Context,
+  name: string,
+  kind: SecretKind,
+  input: Uint8Array,
+): Uint8Array {
+  const value = kind === "env" ? trimNewlines(input) : input;
   if (value.length === 0) throw new CliError("empty value: nothing to add");
-  if (kind !== "env") return;
+  if (kind !== "env") return value;
   if (envValue(value) === undefined) {
     throw new CliError(
       `${name} is env-style, so its value must be UTF-8 text without NUL bytes; use a lowercase file-style name for binary values`,
     );
   }
-  if (value[value.length - 1] === 0x0a) {
-    note(
-      ctx,
-      `agedrop: warning: the value ends with a newline, which is kept (use printf, not echo)`,
-    );
+  if (value.length !== input.length) {
+    note(ctx, `agedrop: removed the trailing newline from ${name}, as $(…) does`);
   }
+  return value;
 }
 
 /**
