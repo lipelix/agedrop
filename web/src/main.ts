@@ -6,7 +6,17 @@
 import { isValidSecretName, secretKind, type SecretRequest } from "../../src/index.js";
 import { day, h } from "./dom.js";
 import { GitHubClient, GitHubError } from "./github.js";
-import { clearSession, loadSession, saveSession, type Session, tokenUrl } from "./session.js";
+import {
+  activeSession,
+  clearSessions,
+  findSession,
+  loadSessions,
+  removeSession,
+  saveSession,
+  type Session,
+  setActive,
+  tokenUrl,
+} from "./session.js";
 import { lock, onLockChange, unlockedOwner } from "./owner.js";
 import {
   lockBar,
@@ -32,6 +42,8 @@ interface State {
   error?: string | undefined;
   /** The last commit this page made, shown once on the page it returns to. */
   flash?: { message: string; url: string } | undefined;
+  /** What just happened to the list of repositories, shown once. */
+  notice?: string | undefined;
 }
 
 const state: State = {};
@@ -43,7 +55,8 @@ type Route =
   | { page: "requests" }
   | { page: "fulfil"; id: string; repo?: string }
   | { page: "owner" }
-  | { page: "owner-setup" };
+  | { page: "owner-setup" }
+  | { page: "repositories"; add?: string; next?: string };
 
 function route(): Route {
   const [path = "", query = ""] = location.hash.replace(/^#/, "").split("?");
@@ -66,6 +79,16 @@ function route(): Route {
   if (parts[0] === "requests") return { page: "requests" };
   if (parts[0] === "owner" && parts[1] === "setup") return { page: "owner-setup" };
   if (parts[0] === "owner") return { page: "owner" };
+  if (parts[0] === "repositories") {
+    const add = params.get("add") ?? undefined;
+    const next = params.get("next") ?? undefined;
+    return {
+      page: "repositories",
+      ...(add === undefined ? {} : { add }),
+      // Only a page of this app may follow: the link is untrusted input.
+      ...(next?.startsWith("/requests/") ? { next } : {}),
+    };
+  }
   return { page: "inventory" };
 }
 
@@ -97,6 +120,22 @@ async function render(): Promise<void> {
     focusHeading();
     return;
   }
+  const wanted = route();
+  if (wanted.page === "fulfil" && wanted.repo !== undefined && !isOpen(wanted.repo)) {
+    // A notification's link names its repository: one this device is signed in to opens by itself.
+    const other = findSession(wanted.repo);
+    if (other !== undefined) {
+      open(other);
+      state.notice = `Switched to ${other.repository}.`;
+    }
+  }
+  if (wanted.page === "repositories") {
+    resetShow();
+    resetSetup();
+    root.replaceChildren(shell(wanted, repositoriesView(wanted.add, wanted.next), false));
+    focusHeading();
+    return;
+  }
   if (state.snapshot === undefined && state.error === undefined) {
     root.replaceChildren(
       shell(
@@ -110,7 +149,7 @@ async function render(): Promise<void> {
     } catch (error) {
       state.error = message(error);
       if (error instanceof GitHubError && error.status === 401) {
-        signOut(state.error);
+        rejected(state.session, state.error);
         return;
       }
     }
@@ -127,7 +166,12 @@ async function render(): Promise<void> {
       { class: "panel" },
       h("h1", { tabindex: "-1" }, "Cannot read the repository"),
       h("p", { class: "error", role: "alert" }, state.error ?? "Unknown error"),
-      h("button", { class: "button", onclick: () => void reload() }, "Try again"),
+      h(
+        "div",
+        { class: "actions" },
+        h("button", { class: "button", onclick: () => void reload() }, "Try again"),
+        h("a", { class: "button button-quiet", href: "#/repositories" }, "Repositories"),
+      ),
     );
   } else if (current.page === "add") page = addView(snapshot, current.scope, current.name);
   else if (current.page === "requests") page = requestsView(snapshot);
@@ -177,16 +221,61 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function signOut(reason?: string): void {
+function isOpen(repository: string): boolean {
+  return state.session?.repository.toLowerCase() === repository.toLowerCase();
+}
+
+/** Leaves the open repository: nothing read or unlocked there may show in the next one. */
+function close(): void {
   resetShow();
   resetSetup();
   lock();
-  clearSession();
   state.session = undefined;
   state.client = undefined;
   state.snapshot = undefined;
+  state.loading = undefined;
+  state.error = undefined;
+  state.flash = undefined;
+}
+
+/** Makes `session` the repository every page works in. */
+function open(session: Session): void {
+  close();
+  state.client = new GitHubClient(session.repository, session.token);
+  state.session = session;
+  setActive(session.repository);
+}
+
+function signOut(reason?: string): void {
+  close();
+  clearSessions();
+  state.notice = undefined;
   state.error = reason;
   void render();
+}
+
+/** Forgets one repository. The open one hands over to the next, or to the sign-in form. */
+function forget(repository: string): void {
+  const wasOpen = isOpen(repository);
+  removeSession(repository);
+  if (wasOpen) {
+    close();
+    const next = activeSession();
+    if (next !== undefined) open(next);
+  }
+}
+
+/** GitHub refused the token of `session`: every repository signed in with it goes, with the reason. */
+function rejected(session: Session, reason: string): void {
+  const gone = loadSessions().filter((other) => other.token === session.token);
+  for (const other of gone) forget(other.repository);
+  if (state.session === undefined) {
+    signOut(reason);
+    return;
+  }
+  const names = gone.map((other) => other.repository).join(", ");
+  state.notice = `${names}: ${reason}. Add ${gone.length === 1 ? "it" : "them"} again with a new token.`;
+  go("#/repositories");
 }
 
 // ---------------------------------------------------------------------------------------------- shell
@@ -226,10 +315,21 @@ function shell(current: Route, page: Node, showFlash = true): HTMLElement {
         { class: "topbar-row" },
         h("a", { href: "#/", class: "wordmark", "aria-label": "agedrop, inventory" }, "agedrop"),
         h(
-          "span",
-          { class: "repo", title: state.session?.repository },
-          state.session?.repository ?? "",
-          snapshot !== undefined ? h("span", { class: "branch" }, ` @ ${snapshot.branch}`) : null,
+          "a",
+          {
+            class: "repo",
+            href: "#/repositories",
+            title: state.session?.repository,
+            "aria-current": current.page === "repositories" ? "page" : undefined,
+          },
+          h("span", { class: "visually-hidden" }, "Repository "),
+          h(
+            "span",
+            { class: "repo-name" },
+            state.session?.repository ?? "",
+            snapshot !== undefined ? h("span", { class: "branch" }, ` @ ${snapshot.branch}`) : null,
+          ),
+          h("span", { class: "visually-hidden" }, ": switch or add"),
         ),
         h(
           "button",
@@ -262,7 +362,14 @@ function shell(current: Route, page: Node, showFlash = true): HTMLElement {
         ),
       ),
     ),
-    h("main", { class: "page" }, showFlash ? flash() : null, page),
+    h(
+      "main",
+      { class: "page" },
+      // The shell drawn while the repository loads is replaced at once: it must not use these up.
+      showFlash || current.page === "repositories" ? notice() : null,
+      showFlash ? flash() : null,
+      page,
+    ),
   );
 }
 
@@ -286,12 +393,56 @@ function flash(): HTMLElement | null {
   );
 }
 
+function notice(): HTMLElement | null {
+  const text = state.notice;
+  if (text === undefined) return null;
+  state.notice = undefined;
+  return h("p", { class: "notice", role: "status" }, text);
+}
+
 // ------------------------------------------------------------------------------------------- sign-in
 
 function signInView(): HTMLElement {
-  const saved = loadSession();
   const current = route();
-  const linked = current.page === "fulfil" ? current.repo : undefined;
+  const linked =
+    current.page === "fulfil" ? current.repo : current.page === "repositories" ? current.add : "";
+  return h(
+    "div",
+    { class: "signin-wrap" },
+    repositoryForm({
+      first: true,
+      repository: linked ?? "",
+      error: state.error,
+      done: () => {
+        // A notification's link stays in the hash, so its fulfil form opens after sign-in.
+        if (current.page === "repositories") go(`#${current.next ?? "/"}`);
+        else void render();
+      },
+    }),
+  );
+}
+
+/** Where a token comes from: typed in, or the one a signed-in repository already uses. */
+function tokenChoices(sessions: readonly Session[]): Session[] {
+  const seen = new Set<string>();
+  return sessions.filter((session) => !seen.has(session.token) && seen.add(session.token));
+}
+
+function ownerOf(repository: string): string {
+  return (repository.split("/")[0] ?? "").toLowerCase();
+}
+
+/**
+ * The form that signs in to a repository: the whole sign-in page for the first one, a section of the
+ * Repositories page for the next. The token is checked against GitHub before anything is stored.
+ */
+function repositoryForm(options: {
+  first: boolean;
+  repository: string;
+  error?: string | undefined;
+  done: () => void;
+}): HTMLElement {
+  const choices = tokenChoices(loadSessions());
   const repository = h("input", {
     id: "repository",
     name: "repository",
@@ -303,9 +454,10 @@ function signInView(): HTMLElement {
     autocapitalize: "off",
     autocorrect: "off",
     spellcheck: "false",
-    value: linked ?? saved?.repository ?? "",
+    value: options.repository,
     oninput: () => {
       link.href = tokenUrl(repository.value.trim());
+      if (!picked) suggest();
     },
   });
   const branch = h("input", {
@@ -316,7 +468,6 @@ function signInView(): HTMLElement {
     autocapitalize: "off",
     autocorrect: "off",
     spellcheck: "false",
-    value: saved?.branch ?? "",
   });
   const token = h("input", {
     id: "token",
@@ -332,62 +483,137 @@ function signInView(): HTMLElement {
   const remember = h("input", { id: "remember", type: "checkbox", name: "remember" });
   const link = h(
     "a",
-    {
-      href: tokenUrl(linked ?? saved?.repository ?? ""),
-      target: "_blank",
-      rel: "noopener noreferrer",
-    },
+    { href: tokenUrl(options.repository), target: "_blank", rel: "noopener noreferrer" },
     "Create a token on GitHub",
   );
-  const error = h("p", { class: "error", role: "alert" }, state.error ?? "");
-  const submit = h("button", { class: "button", type: "submit" }, "Sign in");
+  const error = h("p", { class: "error", role: "alert" }, options.error ?? "");
+  const idle = options.first ? "Sign in" : "Add repository";
+  const submit = h("button", { class: "button", type: "submit" }, idle);
 
-  const form = h(
+  // With a repository signed in, its token can serve the next one: GitHub lets one fine-grained token
+  // cover several repositories of an owner.
+  let picked = false;
+  const source = h(
+    "select",
+    {
+      id: "token-source",
+      name: "token-source",
+      "aria-describedby": "token-source-hint",
+      onchange: () => {
+        picked = true;
+        sync();
+      },
+    },
+    choices.map((session, index) =>
+      h("option", { value: String(index) }, `The token of ${session.repository}`),
+    ),
+    h("option", { value: "new" }, "A new token"),
+  );
+  const tokenField = field(
+    "token",
+    choices.length === 0 ? "Fine-grained token" : "New fine-grained token",
+    token,
+    h(
+      "span",
+      {},
+      "Only your secrets repositories, with Contents: read and write, and an expiry. One token can cover several repositories of the same owner. ",
+      link,
+      ".",
+    ),
+  );
+  const sourceField = field(
+    "token-source",
+    "Token",
+    source,
+    h(
+      "span",
+      {},
+      "A saved token works here once it covers this repository: ",
+      h(
+        "a",
+        {
+          href: "https://github.com/settings/personal-access-tokens",
+          target: "_blank",
+          rel: "noopener noreferrer",
+        },
+        "edit it on GitHub",
+      ),
+      " and add the repository under Repository access.",
+    ),
+  );
+  const reused = (): Session | undefined =>
+    source.value === "new" ? undefined : choices[Number(source.value)];
+  function sync(): void {
+    const saved = reused();
+    tokenField.hidden = saved !== undefined;
+    token.required = saved === undefined;
+    if (saved !== undefined) remember.checked = saved.remember;
+  }
+  /** Until the user picks: a saved token of the same owner, a new one for another owner. */
+  function suggest(): void {
+    const owner = ownerOf(repository.value.trim());
+    const match = choices.findIndex((session) => ownerOf(session.repository) === owner);
+    source.value = owner === "" && choices.length > 0 ? "0" : match === -1 ? "new" : String(match);
+    sync();
+  }
+  suggest();
+
+  return h(
     "form",
     {
-      class: "panel signin",
+      class: options.first ? "panel signin" : "panel add-repository",
+      "aria-labelledby": options.first ? undefined : "repository-form-title",
       onsubmit: (event: Event) => {
         event.preventDefault();
         const session: Session = {
           repository: repository.value.trim(),
           branch: branch.value.trim(),
-          token: token.value.trim(),
+          token: reused()?.token ?? token.value.trim(),
           remember: remember.checked,
         };
+        let client: GitHubClient;
         try {
-          state.client = new GitHubClient(session.repository, session.token);
+          client = new GitHubClient(session.repository, session.token);
         } catch (failure) {
           error.textContent = message(failure);
           return;
         }
-        saveSession(session);
-        state.session = session;
-        state.error = undefined;
-        state.snapshot = undefined;
-        void render();
+        error.textContent = "";
+        submit.disabled = true;
+        submit.textContent = "Checking with GitHub…";
+        void client.repo().then(
+          () => {
+            saveSession(session);
+            open(session);
+            if (!options.first) state.notice = `Added ${session.repository}.`;
+            options.done();
+          },
+          (failure: unknown) => {
+            error.textContent =
+              reused() !== undefined && failure instanceof GitHubError && failure.status === 404
+                ? `${message(failure)}. Add it to the token on GitHub, or use a new token.`
+                : message(failure);
+            submit.disabled = false;
+            submit.textContent = idle;
+          },
+        );
       },
     },
-    h("p", { class: "eyebrow" }, "agedrop"),
-    h("h1", { tabindex: "-1" }, "Sign in to your secrets repository"),
-    h(
-      "p",
-      { class: "lede" },
-      "This page encrypts on your device and commits through the GitHub API. There is no agedrop server, and only ciphertext leaves the page.",
-    ),
+    options.first ? h("p", { class: "eyebrow" }, "agedrop") : null,
+    options.first
+      ? h("h1", { tabindex: "-1" }, "Sign in to your secrets repository")
+      : h("h2", { id: "repository-form-title" }, "Add a repository"),
+    options.first
+      ? h(
+          "p",
+          { class: "lede" },
+          "This page encrypts on your device and commits through the GitHub API. There is no agedrop server, and only ciphertext leaves the page.",
+        )
+      : null,
     field("repository", "Repository", repository),
     field("branch", "Branch", branch, "Leave empty for the repository's default branch."),
-    field(
-      "token",
-      "Fine-grained token",
-      token,
-      h(
-        "span",
-        {},
-        "Only this repository, with Contents: read and write, and an expiry. ",
-        link,
-        ".",
-      ),
-    ),
+    choices.length === 0 ? null : sourceField,
+    tokenField,
     h(
       "label",
       { class: "check" },
@@ -402,7 +628,83 @@ function signInView(): HTMLElement {
     error,
     submit,
   );
-  return h("div", { class: "signin-wrap" }, form);
+}
+
+// -------------------------------------------------------------------------------------- repositories
+
+function repositoriesView(add?: string, next?: string): HTMLElement {
+  const sessions = loadSessions();
+  const shared = (session: Session): number =>
+    sessions.filter((other) => other.token === session.token).length;
+  return h(
+    "section",
+    { class: "repositories" },
+    h("h1", { tabindex: "-1" }, "Repositories"),
+    h(
+      "p",
+      { class: "lede" },
+      "Every repository this device is signed in to. Pages show one at a time.",
+    ),
+    h(
+      "ul",
+      { class: "repo-list", "aria-label": "Signed-in repositories" },
+      sessions.map((session) => {
+        const current = isOpen(session.repository);
+        return h(
+          "li",
+          { class: "repo-row" },
+          h(
+            "button",
+            {
+              class: "repo-open",
+              type: "button",
+              "aria-current": current ? "true" : undefined,
+              onclick: () => {
+                if (!current) open(session);
+                go("#/");
+              },
+            },
+            h("strong", {}, session.repository),
+            h(
+              "span",
+              { class: "repo-meta" },
+              [
+                ...(session.branch === "" ? [] : [session.branch]),
+                session.remember ? "remembered" : "this tab only",
+                ...(shared(session) > 1 ? ["shared token"] : []),
+              ].join(" · "),
+            ),
+            current ? h("span", { class: "repo-current" }, "Open") : null,
+          ),
+          h(
+            "button",
+            {
+              class: "link-button repo-remove",
+              type: "button",
+              "aria-label": `Remove ${session.repository}`,
+              onclick: () => {
+                forget(session.repository);
+                if (state.session === undefined) {
+                  signOut();
+                  return;
+                }
+                state.notice = `Removed ${session.repository} from this device. Its token still exists on GitHub.`;
+                void render();
+              },
+            },
+            "Remove",
+          ),
+        );
+      }),
+    ),
+    repositoryForm({
+      first: false,
+      repository: add ?? "",
+      done: () => {
+        go(`#${next ?? "/"}`);
+      },
+    }),
+  );
 }
 
 function field(id: string, label: string, control: HTMLElement, hint?: string | Node): HTMLElement {
@@ -814,7 +1116,8 @@ function requestsView(snapshot: Snapshot): HTMLElement {
 
 function fulfilView(snapshot: Snapshot, id: string, repo?: string): HTMLElement {
   const signedIn = state.session?.repository ?? "";
-  if (repo !== undefined && repo.toLowerCase() !== signedIn.toLowerCase()) {
+  if (repo !== undefined && !isOpen(repo)) {
+    const add = new URLSearchParams({ add: repo, next: `/requests/${id}?repo=${repo}` });
     return h(
       "section",
       { class: "panel" },
@@ -822,18 +1125,9 @@ function fulfilView(snapshot: Snapshot, id: string, repo?: string): HTMLElement 
       h(
         "p",
         {},
-        `This link is for request ${id} in ${repo}, and you are signed in to ${signedIn}. Sign out, then sign in to ${repo} to fulfil it.`,
+        `This link is for request ${id} in ${repo}, and this device is not signed in to it. Add it to fulfil the request; ${signedIn} stays signed in.`,
       ),
-      h(
-        "button",
-        {
-          class: "button",
-          onclick: () => {
-            signOut();
-          },
-        },
-        `Sign out and switch to ${repo}`,
-      ),
+      h("a", { class: "button", href: `#/repositories?${add.toString()}` }, `Add ${repo}`),
     );
   }
   const request = snapshot.requests.find((open) => open.id === id);
@@ -911,13 +1205,12 @@ function fulfilView(snapshot: Snapshot, id: string, repo?: string): HTMLElement 
 
 // -------------------------------------------------------------------------------------------- start
 
-const saved = loadSession();
+const saved = activeSession();
 if (saved !== undefined) {
   try {
-    state.client = new GitHubClient(saved.repository, saved.token);
-    state.session = saved;
+    open(saved);
   } catch {
-    clearSession();
+    clearSessions();
   }
 }
 window.addEventListener("hashchange", () => void render());

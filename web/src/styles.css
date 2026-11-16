@@ -126,11 +126,50 @@ pre {
 .repo {
   min-width: 0;
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  /* A 44px target on a row that stays one text line tall. */
+  margin: -0.75rem 0;
+  padding: 0.75rem 0;
+  font: 0.875rem var(--font-type);
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 140ms;
+}
+
+.repo-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 0.875rem var(--font-type);
-  color: var(--muted);
+}
+
+/* The switch mark: a chevron that says the name opens a list. */
+.repo::after {
+  content: "";
+  flex: none;
+  width: 0.45em;
+  height: 0.45em;
+  margin-bottom: 0.2em;
+  border: solid var(--stamp);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  transition: transform 200ms var(--ease-out);
+}
+
+.repo:hover,
+.repo[aria-current="page"] {
+  color: var(--ink);
+}
+
+.repo:hover::after {
+  transform: translateY(2px) rotate(45deg);
+}
+
+.repo[aria-current="page"]::after {
+  margin-bottom: -0.2em;
+  transform: rotate(-135deg);
 }
 
 .branch {
@@ -531,6 +570,107 @@ form > .button[type="submit"] {
   position: relative;
   overflow: hidden;
   animation: enter 320ms var(--ease-out);
+}
+
+/* ---------------------------------------------------------------- repositories */
+
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--paper-shade);
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.actions .button-quiet {
+  min-height: 48px;
+}
+
+.repo-list {
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.repo-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-right: 0.75rem;
+}
+
+.repo-row + .repo-row {
+  border-top: 1px solid var(--rule);
+}
+
+.repo-open {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.1rem 0.75rem;
+  min-height: 60px;
+  padding: 0.7rem 0.5rem 0.7rem 1rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms;
+}
+
+.repo-open:hover {
+  background: color-mix(in oklch, var(--stamp) 7%, transparent);
+}
+
+.repo-open strong {
+  grid-column: 1 / -1;
+  font: 600 1rem var(--font-type);
+  overflow-wrap: anywhere;
+}
+
+.repo-meta {
+  grid-column: 1;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.repo-current {
+  grid-area: 2 / 2;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--stamp);
+  color: var(--stamp-ink);
+  font: 700 0.75rem/1.4 var(--font-sans);
+}
+
+.repo-remove {
+  flex: none;
+  color: var(--muted);
+}
+
+.repo-remove:hover {
+  color: var(--label);
+}
+
+.add-repository h2 {
+  margin-bottom: 1rem;
+  font-size: 1.125rem;
 }
 
 /* ---------------------------------------------------------------- inventory */
@@ -1076,6 +1216,14 @@ form > .button[type="submit"] {
 }
 
 @media (min-width: 40rem) {
+  .repo-open strong {
+    grid-column: 1;
+  }
+
+  .repo-current {
+    grid-area: 1 / 2 / span 2;
+  }
+
   .panel {
     padding: 1.75rem;
   }

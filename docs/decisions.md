@@ -362,3 +362,27 @@ it is there with the first keystroke; the CSP gains `font-src data:`, and `font-
 invisible rather than readable if it were ever late. The rule is `!important` so no field style brings a readable
 font back. Trade-offs: a screen reader reads the field's text, as it does any text field, and copying selected
 text copies the value, as before. Whether Safari on a real iPhone no longer offers the sign-in is checked by hand.
+
+
+## 2026-11-16 — The web UI signs in to several repositories, one open at a time
+
+**Context.** The page held one repository and one token. Someone with secrets in several repositories had to
+sign out and paste another token for each change, and a notification's link for another repository ended in
+"sign out, then sign in".
+
+**Decision.**
+- **A list of signed-in repositories, one open at a time.** Every page keeps working in one repository, so
+  no view mixes secrets or requests of two repositories and a value cannot land in the wrong one by a missed
+  column. The top bar names the open repository and leads to the list. A merged view of all requests was left
+  out: it costs several API calls per repository on every load and adds a second place where the repository
+  must be read off the screen.
+- **Tokens are reused, not multiplied.** A fine-grained token can cover several repositories of one owner, so
+  adding a repository offers a saved token first. The user widens that token on GitHub instead of creating
+  one per repository. Another owner needs its own token, since a fine-grained token belongs to one owner.
+- **The token is checked before it is stored**, by reading the repository. A list with entries that never
+  worked would be worse than a form that says why.
+- **A notification's link may change the open repository** when the device is signed in to the one it names.
+  The link is untrusted, but it can only move between the user's own repositories; the page says it switched,
+  the top bar names the repository, and the value is encrypted to that repository's recipients either way.
+- **Storage keeps its key.** `agedrop.session` now holds a list; a single object from before is read as a list
+  of one, so nobody is signed out by the update.

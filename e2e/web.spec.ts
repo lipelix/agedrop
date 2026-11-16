@@ -286,12 +286,14 @@ test("a notification's link fills in the repository and opens the fulfil form af
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("heading", { name: "mini/hq/VAPID_PRIVATE_KEY" })).toBeVisible();
 
-  // The same link for another repository says so instead of "Request not open".
+  // The same link for a repository this device is not signed in to says so instead of
+  // "Request not open", and offers to add it.
   await page.goto(`/#/requests/k7mq2xpa?repo=someone%2Fother-secrets`);
   await expect(page.getByRole("heading", { name: "Request in another repository" })).toBeVisible();
-  await expect(page.getByText(`you are signed in to ${REPOSITORY}`)).toBeVisible();
-  await page.getByRole("button", { name: "Sign out and switch to someone/other-secrets" }).click();
-  await expect(page.getByLabel("Repository")).toHaveValue("someone/other-secrets");
+  await expect(page.getByText(`${REPOSITORY} stays signed in`)).toBeVisible();
+  await page.getByRole("link", { name: "Add someone/other-secrets" }).click();
+  await expect(page.getByRole("heading", { name: "Add a repository" })).toBeVisible();
+  await expect(page.getByLabel("Repository", { exact: true })).toHaveValue("someone/other-secrets");
 });
 
 test("a wrong token returns to sign-in with the reason", async ({ page }) => {
