@@ -110,6 +110,16 @@ test.describe("with a fake PRF authenticator", () => {
     await expect(page.locator(".identity-comment")).toHaveCount(2);
     await expect(page.getByText("is the private key. Anyone who has it")).toBeVisible();
     const identity = /AGE-SECRET-KEY-1[0-9A-Z]+/.exec(backup)?.[0] ?? "";
+    // Save in Passwords: a username and password form the browser offers to save.
+    await expect(page.getByLabel("Account")).toHaveValue("alex owner key · someone/home-secrets");
+    await expect(page.getByLabel("Account")).toHaveAttribute("autocomplete", "username");
+    await expect(page.getByLabel("Private key")).toHaveValue(identity);
+    await expect(page.getByLabel("Private key")).toHaveAttribute("autocomplete", "new-password");
+    await page.getByRole("button", { name: "Save in Passwords" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "in Passwords" })).toContainText(
+      "alex owner key · someone/home-secrets",
+    );
+    await expect(page.getByLabel("Private key")).toHaveCount(0);
     const recipient = /# public key: (age1[0-9a-z]+)/.exec(backup)?.[1] ?? "";
     const commitButton = page.getByRole("button", { name: "Commit" });
     await expect(commitButton).toBeDisabled();
@@ -179,6 +189,12 @@ test.describe("with a fake PRF authenticator", () => {
     await signIn(page);
     await page.getByRole("link", { name: /^Owner/ }).click();
     await page.getByText("Lost the passkey? Unlock with the backup").click();
+    // Named like the entry Save in Passwords made, so the browser fills both fields.
+    await expect(page.getByLabel("Saved as")).toHaveValue("owner owner key · someone/home-secrets");
+    await expect(page.getByLabel("Backup identity")).toHaveAttribute(
+      "autocomplete",
+      "current-password",
+    );
 
     const stranger = await throwawayKey();
     await page.getByLabel("Backup identity").fill(stranger.identity);

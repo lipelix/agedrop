@@ -26,6 +26,8 @@ the CLI; such changes are marked **Breaking**.
   button to the Owner page instead of listing it as a problem.
 - Web UI: the owner backup marks the private key line, dims the comments, says that `# public key` is not
   secret, and asks to store the file with Copy or Download rather than a screenshot.
+- Web UI: **Save in Passwords** stores the owner backup in the browser's passwords in one tap, and
+  **Unlock with the backup** fills it from there; a whole identity file pasted into the one-line field works.
 
 ## [0.1.0] - 2026-11-14
 

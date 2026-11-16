@@ -53,10 +53,16 @@ export function formatIdentityFile(identity: string, recipient: string, created:
  * an error that never repeats the text, because it may hold a private key.
  */
 export async function readOwnerIdentity(text: string, now = new Date()): Promise<OwnerIdentity> {
-  const keys = text
+  let keys = text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line !== "" && !line.startsWith("#"));
+  if (keys.length === 0) {
+    // A whole identity file pasted into a one-line field (a password field drops the newlines) is one
+    // comment line that ends with the key.
+    const joined = /#.*?(AGE-SECRET-KEY-1[0-9A-Z]+)\s*$/i.exec(text.trim());
+    if (joined?.[1] !== undefined) keys = [joined[1]];
+  }
   if (keys.length !== 1) {
     throw new Error(
       keys.length === 0

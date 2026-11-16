@@ -474,7 +474,11 @@ browsers, so this is the one step without a CLI command.
   `~/.config/agedrop/identity`) and the page checks that its public key matches. Then, each step on its
   own tap: it creates a passkey (`agedrop <name> (<owner/repo>)`) with the PRF extension, wraps the identity
   with it, and, for a generated identity, shows the backup and waits for the owner to confirm it is stored.
-  It commits one commit:
+  The backup can go to the browser's passwords in one tap: **Save in Passwords** submits a form whose
+  username is `<name> owner key · <owner/repo>` and whose password is the `AGE-SECRET-KEY-1…` line, so the
+  browser offers to save it (the Credential Management API where there is one, else the browser's own
+  prompt on submit). The page says that this copy shares an account with the passkey and asks for a second
+  one outside it. It commits one commit:
 
   | Case | Files | Message |
   |---|---|---|
@@ -485,8 +489,10 @@ browsers, so this is the one step without a CLI command.
   `agedrop init --owner <name>` puts it there from the start. Setting up again replaces the passkey: the old
   one stops working.
 - **Unlock** asks for the passkey and unwraps the owner's identity file. When several owners have one, the
-  page asks which. **Unlock with the backup** takes the pasted identity instead, for a lost passkey or a
-  browser without PRF. The identity lives only in the page's memory, never in storage, a URL or a log,
+  page asks which. **Unlock with the backup** takes the identity instead, for a lost passkey or a
+  browser without PRF: a username and a password field named like the saved entry, so the browser fills
+  it from its passwords, or a pasted key line or file (a one-line field joins the file's lines; the key is
+  read from the end). The identity lives only in the page's memory, never in storage, a URL or a log,
   and is dropped after 5 minutes, on "Lock", and on sign-out.
 - **Show** on a secret in the inventory unlocks first when needed, then decrypts the secret in the browser
   and shows its value. Values are hidden until asked for, and hidden again after 30 seconds, when the tab is

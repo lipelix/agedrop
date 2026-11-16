@@ -305,16 +305,28 @@ export function ownerView(ctx: OwnerContext): HTMLElement {
     ),
   );
 
-  const backup = h("textarea", {
-    id: "backup",
-    class: "masked",
-    rows: "3",
-    autocomplete: "off",
+  // A username and a password field, so a backup saved in the browser's passwords fills in here.
+  const backupAccount = h("input", {
+    id: "backup-account",
+    name: "username",
+    type: "text",
+    autocomplete: "username",
     autocapitalize: "off",
     autocorrect: "off",
     spellcheck: "false",
-    "data-1p-ignore": true,
-    "data-lpignore": "true",
+    value: backupAccountName(
+      owners[0] ?? ctx.snapshot.config?.groups.get("owners")?.[0] ?? "",
+      ctx.repository,
+    ),
+  });
+  const backup = h("input", {
+    id: "backup",
+    name: "password",
+    type: "password",
+    autocomplete: "current-password",
+    autocapitalize: "off",
+    autocorrect: "off",
+    spellcheck: "false",
     placeholder: "AGE-SECRET-KEY-1…",
     "aria-describedby": "backup-hint",
   });
@@ -342,13 +354,19 @@ export function ownerView(ctx: OwnerContext): HTMLElement {
     h(
       "div",
       { class: "field" },
+      h("label", { for: "backup-account", class: "label" }, "Saved as"),
+      backupAccount,
+    ),
+    h(
+      "div",
+      { class: "field" },
       h("label", { for: "backup", class: "label" }, "Backup identity"),
       backup,
     ),
     h(
       "p",
       { class: "hint", id: "backup-hint" },
-      "The identity shown once at setup. It stays in this tab's memory and is never stored or sent.",
+      "The identity shown once at setup: fill it from Passwords, or paste the AGE-SECRET-KEY-1… line or the whole file. It stays in this tab's memory and is never stored or sent.",
     ),
     backupError,
     h("button", { class: "button button-quiet", type: "submit" }, "Unlock with the backup"),
@@ -702,10 +720,11 @@ function confirmStep(ctx: OwnerContext, current: Wizard): HTMLElement {
             " is the private key. Anyone who has it can read every secret.",
           ),
         ),
+        saveInPasswords(ctx.repository, current.name, owner.identity),
         h(
           "p",
           {},
-          "Store the whole file with Copy (into a password manager) or Download, or on paper. Not as a screenshot, which syncs to photo libraries, and never in the repository.",
+          "Passwords holds it with your passkey, in the same account. Keep a second copy outside that account too: Download it, Copy it into another password manager, or write it on paper. Not as a screenshot, which syncs to photo libraries, and never in the repository.",
         ),
         h(
           "div",
@@ -751,7 +770,7 @@ function confirmStep(ctx: OwnerContext, current: Wizard): HTMLElement {
   const files = current.isNew
     ? [`recipients/${current.name}.pub`, `recipients/${current.name}.identity.age`]
     : [`recipients/${current.name}.identity.age`];
-  return h(
+  const commitForm = h(
     "form",
     {
       novalidate: true,
@@ -775,7 +794,6 @@ function confirmStep(ctx: OwnerContext, current: Wizard): HTMLElement {
         );
       },
     },
-    backup,
     h(
       "p",
       { class: "to" },
@@ -786,6 +804,92 @@ function confirmStep(ctx: OwnerContext, current: Wizard): HTMLElement {
     error,
     submit,
   );
+  // The backup sheet holds its own form (Save in Passwords), so it sits beside the commit form.
+  return h("div", {}, backup, commitForm);
+}
+
+/** The account a backup is saved under in the browser's passwords, next to the repository's token. */
+function backupAccountName(owner: string, repository: string): string {
+  return owner === "" ? `owner key · ${repository}` : `${owner} owner key · ${repository}`;
+}
+
+/**
+ * A username and password form holding the private key line, so that submitting it makes the browser offer
+ * to save it (Safari and Chrome do on submit; Chrome also through the Credential Management API).
+ */
+function saveInPasswords(repository: string, name: string, identity: string): HTMLElement {
+  const account = backupAccountName(name, repository);
+  const form = h(
+    "form",
+    {
+      class: "save-backup",
+      onsubmit: (event: Event) => {
+        event.preventDefault();
+        // The browser may keep its prompt open, or never settle the promise: do not wait for it long.
+        // A browser without the Credential Management API (Safari) offers to save on the submit itself.
+        const store = async (): Promise<void> => {
+          const Credential = (
+            globalThis as { PasswordCredential?: new (data: object) => Credential }
+          ).PasswordCredential;
+          const credentials = (navigator as { credentials?: CredentialsContainer }).credentials;
+          if (Credential === undefined || typeof credentials?.store !== "function") return;
+          await credentials.store(
+            new Credential({ id: account, name: account, password: identity }),
+          );
+        };
+        const stored = Promise.race([
+          store(),
+          new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+        ]);
+        void stored
+          .catch(() => undefined)
+          .then(() => {
+            // Safari offers to save once the submitted form leaves the page.
+            form.replaceChildren(
+              h(
+                "p",
+                { role: "status" },
+                "If your browser offered to save it, it is in Passwords under app.agedrop.dev as ",
+                h("strong", {}, account),
+                ". If it did not, use Copy or Download below.",
+              ),
+            );
+          });
+      },
+    },
+    h(
+      "div",
+      { class: "field" },
+      h("label", { for: "save-account", class: "label" }, "Account"),
+      h("input", {
+        id: "save-account",
+        name: "username",
+        type: "text",
+        autocomplete: "username",
+        value: account,
+        autocapitalize: "off",
+        autocorrect: "off",
+        spellcheck: "false",
+      }),
+    ),
+    h(
+      "div",
+      { class: "field" },
+      h("label", { for: "save-key", class: "label" }, "Private key"),
+      h("input", {
+        id: "save-key",
+        name: "password",
+        type: "password",
+        autocomplete: "new-password",
+        value: identity,
+        autocapitalize: "off",
+        autocorrect: "off",
+        spellcheck: "false",
+      }),
+    ),
+    h("button", { class: "button", type: "submit" }, "Save in Passwords"),
+  );
+  return form;
 }
 
 /**
