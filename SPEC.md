@@ -45,6 +45,7 @@ requests/
 - Recipient names (`<name>` in `recipients/`) and group names match `[a-z0-9][a-z0-9_-]*`.
 - Secret files are armored (`-----BEGIN AGE ENCRYPTED FILE-----`), so git diffs and the web UI handle them as text.
   The plaintext is the value's exact bytes: nothing is added or stripped, including a trailing newline.
+  (Writers prepare a value before encrypting it; see § `add`.)
 
 ## `agedrop.toml`
 
@@ -234,8 +235,10 @@ It never overwrites an identity file. `--out -` prints the identity instead, e.g
 
 ### `add <scope> <NAME>`
 
-Reads the value from stdin as exact bytes. From a terminal it reads one line without echo.
-An empty value is an error. It writes `secrets/<scope>/<NAME>.age` encrypted to the scope's recipient set
+Reads the value from stdin. From a terminal it reads one line without echo.
+An env-style value loses its trailing newlines (`\n`, `\r\n`), as shell `$(…)` does, and says so on stderr:
+`echo` and most files end with one, and no environment variable wants it. A file-style value keeps its exact
+bytes. An empty value, after that, is an error. It writes `secrets/<scope>/<NAME>.age` encrypted to the scope's recipient set
 and records the set's fingerprint in `agedrop.lock`.
 
 ### `ls [scope]`
@@ -289,8 +292,8 @@ and reason. `--json` prints them as JSON, with the `generate` hint. `ls` lists t
 Shows the request and reads the value like `add`: from stdin, or from a terminal one hidden line.
 When the request has a `generate` hint, from a terminal it shows the command and asks whether to run it;
 `--generate` runs it without asking. The command runs with `sh -c` in the current directory; its stdout is the value
-and its stderr is passed through. For an env-style name, trailing newlines are removed, as shell `$(…)` does;
-a file-style value keeps the exact bytes. A failing command or an empty value writes nothing.
+and its stderr is passed through. Whatever the source, the value is prepared as `add` does: an env-style
+value loses its trailing newlines, a file-style value keeps the exact bytes. A failing command or an empty value writes nothing.
 Then it writes `secrets/<scope>/<NAME>.age` and `agedrop.lock` as `add` does, deletes the request file,
 and commits exactly those paths (other staged changes stay staged) with the message
 `chore(secrets): fulfil <scope>/<NAME> (request <id>)`. `--no-commit`, or a repository outside a git work

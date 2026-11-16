@@ -16,6 +16,10 @@ the CLI; such changes are marked **Breaking**.
 ### Changed
 
 - Web UI: the sign-in form checks the token against GitHub before storing it.
+- **Breaking:** `add` and `fulfil` remove trailing newlines from an env-style value read from stdin, as the
+  `--generate` path already did, so `agedrop fulfil <id> < token-file` stores the token without the file's
+  newline. File-style values still keep their exact bytes.
+- The CLI no longer prints Node's experimental-feature warning for X25519 on every command.
 
 ## [0.1.0] - 2026-11-14
 

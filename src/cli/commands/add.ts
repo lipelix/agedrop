@@ -3,17 +3,18 @@ import type { Command } from "../command.js";
 import { parse } from "../command.js";
 import { note, UsageError } from "../context.js";
 import { openRepository, scopeOf } from "../repo.js";
-import { checkValue, readValue, storeSecret } from "../store.js";
+import { prepareValue, readValue, storeSecret } from "../store.js";
 
 export const add: Command = {
   name: "add",
   summary: "encrypt a value from stdin to a scope's recipients",
   help: `usage: agedrop add <scope> <NAME> [--repo <dir>] < value
 
-Reads the value from stdin (exact bytes; from a terminal, one hidden line)
-and writes secrets/<scope>/<NAME>.age, encrypted to the scope's recipients
+Reads the value from stdin (from a terminal, one hidden line) and writes secrets/<scope>/<NAME>.age, encrypted to the scope's recipients
 with public keys only. Records the recipient set in agedrop.lock.
-NAME is FOO_BAR for env-style values or foo.bar for file-style ones.`,
+NAME is FOO_BAR for env-style values or foo.bar for file-style ones.
+An env-style value loses its trailing newlines; a file-style one keeps
+its exact bytes.`,
   async run(ctx, args) {
     const { values, positionals } = parse(args, { repo: { type: "string" } });
     const [scope, name, ...rest] = positionals;
@@ -30,8 +31,12 @@ NAME is FOO_BAR for env-style values or foo.bar for file-style ones.`,
     const repo = await openRepository(ctx, values.repo);
     const resolved = scopeOf(repo, scope);
 
-    const value = await readValue(ctx, `value for ${scope}/${name}: `);
-    checkValue(ctx, name, kind, value);
+    const value = prepareValue(
+      ctx,
+      name,
+      kind,
+      await readValue(ctx, `value for ${scope}/${name}: `),
+    );
     const replaced = await storeSecret(repo, resolved, name, value);
 
     note(

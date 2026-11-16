@@ -386,3 +386,19 @@ sign out and paste another token for each change, and a notification's link for 
   the top bar names the repository, and the value is encrypted to that repository's recipients either way.
 - **Storage keeps its key.** `agedrop.session` now holds a list; a single object from before is read as a list
   of one, so nobody is signed out by the update.
+
+
+## 2026-11-16 — Env-style values lose trailing newlines from stdin
+
+**Context.** A real run of the agent flow fulfilled a provider token with `agedrop fulfil <id> < token-file`.
+The file ended with a newline, so the stored value did too: `add` and `fulfil` kept stdin's exact bytes and only
+warned. The service still worked, but only because `fetch` trims header values; an HMAC key or a password
+compared byte for byte would have failed with no clue why. The `--generate` path already stripped the newline,
+so the same request gave different values depending on how it was answered.
+
+**Decision.** Writers prepare a value once, whatever its source: an env-style value loses its trailing
+newlines (`\n`, `\r\n`), as shell `$(…)` does, and the CLI says so on stderr. A file-style value keeps its exact
+bytes, since keys and certificates end with a newline on purpose. The web UI already matched: env-style values
+come from a one-line field. The format rule does not change: the plaintext is still stored as exact bytes. An
+env value that must end with a newline cannot come from the CLI; no such variable was found worth the
+exception, and a file-style name holds it.

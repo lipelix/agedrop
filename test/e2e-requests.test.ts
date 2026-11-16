@@ -119,8 +119,13 @@ describe("requests end to end", () => {
         await writeFile(join(human, "notes.txt"), "unrelated\n");
         await git(human, humanEnv, "add", "notes.txt");
 
+        // Piped from a file, as `fulfil <id> < token-file`: the env-style value loses the newline.
         const value = "s3cret-from-the-owner";
-        result = await spawnCli(["fulfil", tokenId], { cwd: human, env: humanEnv, stdin: value });
+        result = await spawnCli(["fulfil", tokenId], {
+          cwd: human,
+          env: humanEnv,
+          stdin: `${value}\n`,
+        });
         expect(result.code, result.stderr).toBe(0);
         expect(result.stdout + result.stderr).not.toContain(value);
         expect(result.stderr).toContain("Token for the deploy hook");

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import "./warnings.js";
 import { processContext } from "./context.js";
 import { run } from "./run.js";
 
