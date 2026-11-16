@@ -144,7 +144,10 @@ test.describe("with a fake PRF authenticator", () => {
     github.files.delete("recipients/owner.pub");
     await connect(page, github);
     await signIn(page);
-    await page.goto("/#/owner/setup");
+    // The inventory leads there instead of listing it as a problem.
+    await expect(page.getByRole("heading", { name: "Set up the key of owner" })).toBeVisible();
+    await expect(page.getByText(/problems? found/)).toBeHidden();
+    await page.getByRole("link", { name: "Set up owner" }).click();
     await expect(page.getByLabel("Owner name")).toHaveValue("owner");
     await expect(
       page.getByText(/New owner: a new key is made, with recipients\/owner.pub/),
