@@ -112,12 +112,18 @@ The full list is in [SPEC.md § Security notes](SPEC.md#security-notes). To repo
 | Storage                             | age files in git        | encrypted files in git    | encrypted `.env` in git   | their server (cloud or self-hosted) |
 | Add a value without a private key   | yes                     | no (needs the data key)   | yes                       | yes, with an account       |
 | Read without the tool               | stock `age`             | needs `sops`              | needs `dotenvx`           | no                         |
-| Web UI                              | static page, no backend | no                        | no                        | yes, with a server         |
-| Agent requests, value never shown   | yes                     | no                        | no                        | agent features, but via a server |
-| Server to run or pay for            | none                    | none                      | none                      | yes                        |
+| Private keys                        | one per recipient       | one per recipient         | one per environment, shared | on their server          |
+| Remove a person or machine          | drop the recipient, `rekey` lists what to rotate | drop the recipient, `updatekeys`, rotate | new key pair for everyone, or their hosted Armor | in the server       |
+| Binary values (keys, certificates)  | yes                     | yes                       | no (`.env` values)        | yes                        |
+| Web UI                              | static page, no backend | no                        | hosted Armor (paid)       | yes, with a server         |
+| Agent asks for a secret it lacks    | request, value never shown | no                     | no                        | via their server           |
+| Agent runs with secrets             | `exec` (redaction planned) | `exec-env`             | `run --redact` masks output; approvals in Armor | via their server |
+| Server to run or pay for            | none                    | none                      | none (Armor is optional)  | yes                        |
 
 Phase and Infisical do more: access policies, read audit, dynamic secrets, integrations. Choose them when you need
-those and can run or pay for a server. Why agedrop exists is in [docs/decisions.md](docs/decisions.md).
+those and can run or pay for a server. dotenvx is the closest relative and much further along: SDKs for several
+languages, OS keychain storage, output redaction and a pre-commit guard; its hosted Armor adds approvals and read
+audit. Why agedrop exists is in [docs/decisions.md](docs/decisions.md).
 
 ## Contributing
 
