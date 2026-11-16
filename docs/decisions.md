@@ -420,3 +420,30 @@ file whose lines a one-line field joined. The page still asks for a second copy:
 shares an Apple or Google account with the passkey, so losing that account loses both. Whether Safari offers
 to save a form whose values the page filled in is checked on a real iPhone; Copy and Download stay.
 
+
+## 2026-11-16 — dotenvx compared again: redaction and a commit guard are worth taking
+
+**Context.** dotenvx (dotenvx.com, BSD-3-Clause, 2.35 from 2026-10-13) moved on since the first comparison,
+which said only "no web UI and no request flow". Read on 2026-11-16: dotenvx.com home, docs, CLI reference,
+`/agents`, `/armor`, `/pricing`, changelog.
+
+**Findings.**
+- Same base: values encrypted in git, writes with a public key, no server in the app's path.
+- dotenvx keeps one secp256k1 key pair per environment, and every person and machine of that environment
+  shares its private key (`.env.keys`, `DOTENV_PRIVATE_KEY`). agedrop gives each recipient its own key, so
+  removing one does not mean handing a new key to all the others. Removing access without rotation is a
+  feature of its hosted Armor.
+- Its agent story is output redaction: `dotenvx run --redact -- claude` runs the agent with the values and
+  masks them as `[REDACTED]` in output. It has no way for an agent to ask for a secret it lacks; agedrop has
+  no redaction. The two cover different halves.
+- It ships `protect` / `precommit` (a git filter and hook against committing plaintext `.env` or `.env.keys`),
+  OS keychain and password manager storage of private keys, SDKs for Node, Python, Ruby, Rust and PHP, and
+  announces `Dotenvx.toml` (required, type, enum, redacted per variable) for 3.0.
+- Armor (Member $5/month, Business $90/month) is a backend: login, RBAC, fine-grained access, human approval
+  before decrypt, audit of every decrypt, token revocation, keys held off the device.
+
+**Decision.** Take the two parts that need no backend: `exec --redact` and a pre-commit guard, as a plan in
+this repository. Keep per-recipient keys, the open age format and the request flow as the difference.
+Approvals and read audit stay out: they need a server. The README comparison now shows keys, revocation,
+binary values and both agent halves.
+
