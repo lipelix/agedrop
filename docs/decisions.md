@@ -474,3 +474,40 @@ masks such output with `run --redact`. Item #22 of plan #21 left two questions o
   value is let through on a timer.
 - **Pipes, not a pseudo-terminal.** Keeping a TTY would need a native pty module, the project's first. The
   command loses its terminal on stdout and stderr, and `--help` says so; stdin stays its own.
+
+
+## 2026-11-17 — `protect`: a pre-commit hook and `check --staged`, prevention first
+
+**Context.** A repository holds the encrypted secrets and, often, the files they are decrypted into. One
+`git add .` after `agedrop pull --env .env` commits plaintext, and git history cannot be cleaned reliably once it
+is pushed. dotenvx ships `protect` / `precommit` for this. Item #23 of plan #21.
+
+**Decisions.**
+- **A plain `sh` hook that calls `agedrop check --staged`**, not a git filter. The logic stays in one place that CI
+  runs too, the hook is readable, and it needs only `agedrop` on `PATH`. Without it the hook fails and says so:
+  skipping the check silently would defeat it. The path comes from `git rev-parse --git-path hooks/pre-commit`, so
+  `core.hooksPath` (husky and the like) and linked worktrees work. A hook agedrop did not write is never replaced
+  without `--force`; there is no chaining, the message says to add the line to that hook.
+- **Staged content, not the work tree.** `--staged` reads the blobs in git's index, which is what gets committed.
+  `--since <rev>` reads every commit in `<rev>..HEAD`, not the diff of the range: a value committed and removed
+  again in one pull request is still in history after a merge.
+- **Only leak rules in these modes.** The layout checks of plain `check` (stale lock, unknown scopes) stay out of
+  the hook, so a commit in the middle of a rekey is not refused for the wrong reason.
+- **Rules.** Plaintext under `secrets/` (any non-empty file that is not armored age, so an empty `.gitkeep`
+  passes); an age private key anywhere, matched with at least 50 bech32 characters after `AGE-SECRET-KEY-1` so
+  docs that mention the prefix pass; a `.env` or `.env.*` file that no ignore rule covers, with `.env.example`,
+  `.sample`, `.template` and `.dist` exempt as placeholder files by convention. An ignored env file that is staged
+  was added with `git add -f`: that is taken as deliberate, as the item asked, and it is the one way to commit such
+  a file on purpose that CI also accepts.
+- **`pull --to` outputs are prevented, not detected.** Nothing records where an earlier `pull --to` wrote, so a
+  check cannot know such a directory. Instead `pull` appends each file it writes inside a git work tree to the
+  `.gitignore` next to it (`/<NAME>`, one per file rather than `*`, so other files in the directory are not
+  hidden), and warns when git already tracks one. The same holds for `--env <file>` with any name.
+- **`--values` is opt-in**: it needs an identity, which CI and an agent's session do not have. It matches the same
+  forms as `exec --redact`, in every scope the identity decrypts, and fails when it decrypts none, since a check
+  that found nothing to look for would pass for the wrong reason.
+- **CI is a second workflow**, `agedrop-check.yml`, on pull requests and pushes to the default branch. It catches
+  `--no-verify` and commits made on GitHub's web pages. `init --ci github` now writes whichever of its two
+  workflows is missing, so repositories set up before can add it.
+- **`.gitignore` lines** from `init` and `protect`: `.env`, `.env.*`, `!.env.example`, `identity`, `*.identity`.
+  The default identity lives outside the repository; the last two cover a `keygen --out` into it.

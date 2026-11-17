@@ -66,6 +66,14 @@ agedrop pull mini/hq --env /run/hq/app.env      # or a mode 600 env file for doc
 
 These run on the host, with the host's identity, as part of its deploy, not inside the agent's session.
 
+## Do not commit what was decrypted
+
+`pull` writes plaintext. Inside a git work tree it adds the files to `.gitignore`, and a repository protected with
+`agedrop protect` refuses a commit that holds plaintext under `secrets/`, an age private key or an unignored `.env`
+file. When the hook stops a commit, unstage the file it names (`git rm --cached <file>`); never commit with
+`--no-verify` to get past it, and never `git add -f` a file `.gitignore` covers. The hook's messages name the file,
+never the value.
+
 ## Run a command that has the values
 
 The rules above keep identities out of an agent's session. When an agent's commands still run on a host that
