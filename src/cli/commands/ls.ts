@@ -6,6 +6,7 @@ import type { Command } from "../command.js";
 import { parse } from "../command.js";
 import { note, UsageError } from "../context.js";
 import { gitInfo } from "../git.js";
+import { tooShortToRedact, tooShortWarning } from "../redact.js";
 import { openRepository, scopeFilter } from "../repo.js";
 import { requestTable, table } from "../table.js";
 
@@ -29,7 +30,8 @@ export const ls: Command = {
 Lists secrets (in scope and the scopes nested in it, or all), when and by
 whom each was last committed, and its status: ok, stale (encrypted to an
 older recipient set; needs rekey) or unknown scope. Then open requests.
-Never decrypts anything.`,
+Warns on stderr about env-style secrets too short for redaction in scopes
+with redact = true. Never decrypts anything.`,
   async run(ctx, args) {
     const { values, positionals } = parse(args, {
       json: { type: "boolean", default: false },
@@ -49,8 +51,11 @@ Never decrypts anything.`,
     const git = await gitInfo(repo.root, SECRETS_DIR);
 
     const rows: Row[] = [];
-    for (const file of await listSecretFiles(repo.root)) {
-      if (file.scope === undefined || file.name === undefined || !inScope(file.scope)) continue;
+    const files = (await listSecretFiles(repo.root)).filter(
+      (file) => file.scope !== undefined && inScope(file.scope),
+    );
+    for (const file of files) {
+      if (file.scope === undefined || file.name === undefined) continue;
       const id = `${file.scope}/${file.name}`;
       const expected = fingerprints.get(file.scope);
       const status: Status =
@@ -71,6 +76,9 @@ Never decrypts anything.`,
       });
     }
     const requests = (await loadRequests(repo.root)).filter((r) => inScope(r.scope));
+    for (const path of await tooShortToRedact(repo.root, repo.config.redacted, files)) {
+      note(ctx, tooShortWarning(path));
+    }
 
     if (values.json) {
       ctx.stdout.write(`${JSON.stringify({ secrets: rows, requests }, null, 2)}\n`);

@@ -19,7 +19,8 @@ import { isAgeArmor } from "../../secret.js";
 import { missingRecipients, resolveScope } from "../../scope.js";
 import type { Command } from "../command.js";
 import { parse } from "../command.js";
-import { UsageError } from "../context.js";
+import { note, UsageError } from "../context.js";
+import { tooShortToRedact, tooShortWarning } from "../redact.js";
 import { requireRoot } from "../repo.js";
 
 interface Problem {
@@ -35,13 +36,15 @@ export const check: Command = {
 Validates agedrop.toml, recipients/*.pub and *.identity.age, requests/*.toml,
 the paths and armor of every file under secrets/, and that agedrop.lock
 matches each scope's current recipients. Exits 1 and lists every problem when there are
-any. Never decrypts, so CI can run it without an identity.`,
+any. Also warns, without failing, about env-style secrets too short for redaction in
+scopes with redact = true. Never decrypts, so CI can run it without an identity.`,
   async run(ctx, args) {
     const { values, positionals } = parse(args, { repo: { type: "string" } });
     if (positionals.length > 0)
       throw new UsageError(`unexpected argument "${positionals[0] ?? ""}"`);
     const root = await requireRoot(ctx, values.repo);
     const result = await checkRepository(root);
+    for (const path of result.tooShortToRedact) note(ctx, tooShortWarning(path));
     for (const { file, issue } of result.problems) ctx.stderr.write(`agedrop: ${file}: ${issue}\n`);
     if (result.problems.length > 0) {
       ctx.stderr.write(
@@ -66,6 +69,8 @@ export interface CheckResult {
   readonly scopes: number;
   readonly recipients: number;
   readonly requests: number;
+  /** Warnings, not problems: env-style secrets too short to redact in scopes with `redact = true`. */
+  readonly tooShortToRedact: readonly string[];
 }
 
 /** Runs every check from SPEC.md `check` against a repository checkout. */
@@ -222,6 +227,14 @@ export async function checkRepository(root: string): Promise<CheckResult> {
     scopes: config?.scopes.size ?? 0,
     recipients: recipients.size,
     requests: ids.length,
+    tooShortToRedact:
+      config === undefined
+        ? []
+        : await tooShortToRedact(
+            root,
+            config.redacted,
+            files.filter((file) => file.scope !== undefined && config.scopes.has(file.scope)),
+          ),
   };
 }
 

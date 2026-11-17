@@ -3,6 +3,8 @@ import { homedir } from "node:os";
 /** A stream the CLI writes to. */
 export interface Output {
   write(chunk: string | Uint8Array): unknown;
+  /** Present on real streams: after `write` returned `false`, wait for `drain`. */
+  once?(event: "drain", listener: () => void): unknown;
 }
 
 /** Standard input, with the terminal methods present when it is a TTY. */
