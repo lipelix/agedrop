@@ -134,6 +134,42 @@ describe("agedrop CLI end to end", () => {
         );
         expect(result.code).toBe(7);
         expect(result.stdout).toBe(`s3cret-token|${multiline}`);
+
+        // exec --redact: a command that prints the values in several ways leaks none of them.
+        const leaky = [
+          "const { API_TOKEN: t, MULTILINE: m } = process.env;",
+          "console.log(t, m);",
+          "console.log(encodeURIComponent(m), JSON.stringify({ t, m }));",
+          "console.log(Buffer.from(t).toString('base64'), Buffer.from(m).toString('base64url'));",
+          "console.log('Basic ' + Buffer.from('user:' + t).toString('base64'));",
+          "for (const c of t) process.stdout.write(c);",
+          "console.error('failed with', t, m);",
+          "process.exit(5);",
+        ].join("\n");
+        result = await spawnCli(
+          ["exec", "ci/deploy", "--redact", "--", process.execPath, "-e", leaky],
+          { cwd: repo, env: ciEnv },
+        );
+        expect(result.code).toBe(5);
+        const output = result.stdout + result.stderr;
+        for (const value of ["s3cret-token", multiline]) {
+          for (const form of [
+            value,
+            encodeURIComponent(value),
+            JSON.stringify(value).slice(1, -1),
+            Buffer.from(value).toString("base64").replace(/=+$/, ""),
+            Buffer.from(value).toString("base64url"),
+          ]) {
+            expect(output).not.toContain(form);
+          }
+        }
+        expect(output).not.toContain(
+          Buffer.from("user:s3cret-token").toString("base64").slice(8, -4),
+        );
+        expect(result.stdout).toContain("[REDACTED:API_TOKEN] [REDACTED:MULTILINE]\n");
+        expect(result.stderr).toContain(
+          "\nfailed with [REDACTED:API_TOKEN] [REDACTED:MULTILINE]\n",
+        );
       });
     },
   );

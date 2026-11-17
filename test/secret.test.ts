@@ -4,8 +4,28 @@ import {
   decryptSecretText,
   encryptSecret,
   parseIdentityFile,
+  plaintextLength,
 } from "../src/index.js";
 import { throwawayKey } from "./helpers.js";
+
+describe("plaintextLength", () => {
+  it("reads the plaintext length from the file size, also across 64 KiB chunks", async () => {
+    const a = await throwawayKey();
+    const b = await throwawayKey();
+    const chunk = 64 * 1024;
+    for (const length of [0, 1, 5, 6, 100, chunk - 1, chunk, chunk + 1, 2 * chunk, 2 * chunk + 7]) {
+      const file = await encryptSecret(new Uint8Array(length).fill(120), [
+        a.recipient,
+        b.recipient,
+      ]);
+      expect(plaintextLength(file), String(length)).toBe(length);
+    }
+  });
+
+  it("returns undefined for a file that is not age", () => {
+    expect(plaintextLength("not age")).toBeUndefined();
+  });
+});
 
 describe("secret files", () => {
   it("encrypts to every recipient as armored age", async () => {

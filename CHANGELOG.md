@@ -8,6 +8,11 @@ the CLI; such changes are marked **Breaking**.
 
 ### Added
 
+- `exec --redact` replaces the scope's values in the command's stdout and stderr with `[REDACTED:<NAME>]`,
+  also their URL-encoded, JSON-escaped and base64 forms, so a command an agent runs cannot print them into its
+  transcript. `redact = true` on a scope in `agedrop.toml` makes it the default there and refuses `--no-redact`.
+  `ls` and `check` warn about values too short to redact (under 6 bytes).
+
 - Web UI: sign in to several repositories on one device. The repository name in the top bar opens
   **Repositories**, which switches, adds and removes them; a signed-in repository's token can serve the next
   one, since a fine-grained token can cover several repositories of an owner. A notification's link opens its

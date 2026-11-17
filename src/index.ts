@@ -44,6 +44,7 @@ export {
   encryptSecret,
   isAgeArmor,
   parseIdentityFile,
+  plaintextLength,
 } from "./secret.js";
 export {
   formatIdentityFile,

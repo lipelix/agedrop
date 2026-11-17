@@ -15,6 +15,7 @@ import {
   parseConfig,
   parseIdentityFile,
   parseRecipientFile,
+  plaintextLength,
   type RecipientInfo,
   resolveScope,
 } from "../src/index.js";
@@ -93,6 +94,8 @@ describe("age CLI compatibility", () => {
         const identities = parseIdentityFile(await readFile(keyFile, "utf8"));
         expect(await decryptSecret(armored, identities)).toEqual(value);
       }
+      // ls and check read a value's length from the file without a key (exec --redact warnings).
+      expect(plaintextLength(armored)).toBe(value.length);
     });
   });
 

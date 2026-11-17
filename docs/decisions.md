@@ -447,3 +447,30 @@ this repository. Keep per-recipient keys, the open age format and the request fl
 Approvals and read audit stay out: they need a server. The README comparison now shows keys, revocation,
 binary values and both agent halves.
 
+
+## 2026-11-17 — `exec --redact`: off unless asked for, and the marker names the secret
+
+**Context.** Requests keep a new secret from an agent, but a command that `exec` runs with the values can print
+them (a failing connection string, a debug dump), and the output reaches an agent's transcript and logs. dotenvx
+masks such output with `run --redact`. Item #22 of plan #21 left two questions open.
+
+**Decisions.**
+- **Off unless asked for**, also when stdout is not a terminal. Piping a value on is a legitimate use
+  (`agedrop exec ci/deploy -- sh -c 'printf %s "$TOKEN"' | docker login --password-stdin`), and output that
+  changes with whether a terminal is attached surprises. A scope whose commands an agent runs gets
+  `redact = true` in `agedrop.toml` instead: then the flag cannot be forgotten and `--no-redact` is refused.
+- **`[REDACTED:<NAME>]`**, not one shared marker. Names are public in the repository's paths, so naming the
+  secret leaks nothing new and says which value a failing command printed. A redacted run tells whether a
+  printed string equals a value either way; naming the secret only narrows a guess that has to be the whole
+  value.
+- **What is matched.** Values of 6 bytes or more; shorter ones would mask ordinary output, and `ls` and `check`
+  warn about them, reading the length from the age file's size without a key. Besides the exact bytes: without
+  trailing newlines, URL-encoded, JSON-escaped and base64 (standard and URL-safe, also the characters that only
+  depend on the value at each offset inside a longer base64 text, as in `Authorization: Basic …`). Hex, other
+  escapes and anything the command computes from a value are not matched.
+- **Every byte of every match is masked.** Overlapping matches, of one secret or several, merge into one marker,
+  so `A` overlapping `B` cannot leave a tail of `B`. Output that cannot start a match passes through at once; only
+  a possible start of a value is held until more output or the end, so a prompt is not stuck and no prefix of a
+  value is let through on a timer.
+- **Pipes, not a pseudo-terminal.** Keeping a TTY would need a native pty module, the project's first. The
+  command loses its terminal on stdout and stderr, and `--help` says so; stdin stays its own.
