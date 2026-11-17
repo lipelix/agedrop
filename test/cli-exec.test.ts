@@ -190,9 +190,11 @@ describe("agedrop exec --redact into a closed pipe", () => {
       });
       const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
       expect(first).toMatch(/^\[REDACTED:TOKEN\]\n/);
-      // yes dies of SIGPIPE, as it would without redaction; agedrop reports no error of its own.
-      expect(stderr).toBe("agedrop: not redacted, shorter than 6 bytes: PIN\n");
-      expect(code).toBe(128 + 13);
+      // agedrop reports no error of its own; the command sees the broken pipe as without redaction. Node's
+      // child pipes are pipes on macOS (yes dies of SIGPIPE) and sockets on Linux (yes reports the reset).
+      expect(stderr.startsWith("agedrop: not redacted, shorter than 6 bytes: PIN\n")).toBe(true);
+      expect(stderr).not.toMatch(/EPIPE|Unhandled|node:/);
+      expect([128 + 13, 1]).toContain(code);
     });
   });
 });
