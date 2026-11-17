@@ -62,6 +62,7 @@ recipients = ["owners", "mini"]
 
 [scopes."ci/deploy"]
 recipients = ["owners", "ci"]
+redact = true                   # optional: exec always masks values in output
 ```
 
 Every secret in a scope is encrypted to the union of its groups. `owners` must be in every scope,
@@ -72,8 +73,10 @@ Validation rules:
 - `version` is the integer `0`.
 - `[recipients]` maps each group name to a non-empty list of distinct recipient names.
   The `owners` group must exist. Every listed name needs a `recipients/<name>.pub` file.
-- `[scopes."<scope>"]` has exactly one key, `recipients`: a non-empty list of distinct group names
-  that are defined in `[recipients]` and include `owners`.
+- `[scopes."<scope>"]` has the key `recipients`: a non-empty list of distinct group names
+  that are defined in `[recipients]` and include `owners`. The optional key `redact` is a boolean
+  (default `false`); `true` makes `exec` in that scope always redact (see § `exec`). It applies to that scope
+  only, not to scopes nested in it.
 - Unknown keys anywhere are an error, so a typo cannot silently drop a recipient.
 - A scope's **recipient set** is the union of the age recipients of all members of its groups.
   Two names with the same age recipient count once.
@@ -189,7 +192,7 @@ Validation rules:
 | `agedrop notify [id…] [--since <rev>]` | no | tells a human about new requests: ntfy, a webhook or Web Push |
 | `agedrop ls [scope]` | no | lists secrets, last change (git), stale encryption, open requests |
 | `agedrop pull <scope> --to <dir> \| --env <file>` | yes (host) | decrypts to files or to an env file |
-| `agedrop exec <scope> -- <cmd>` | yes (host) | runs `<cmd>` with the scope's values in its environment |
+| `agedrop exec <scope> [--redact] -- <cmd>` | yes (host) | runs `<cmd>` with the scope's values in its environment, optionally masking them in its output |
 | `agedrop rekey [scope]` | yes (owner) | re-encrypts to the current recipients and updates `agedrop.lock` |
 | `agedrop check` | no | validates layout, names and lock fingerprints |
 
@@ -246,6 +249,8 @@ and records the set's fingerprint in `agedrop.lock`.
 Lists every secret (or those in `scope` and the scopes nested in it) with its last commit date and author
 from `git log`, `uncommitted` when it has changes git does not have yet, and its status: `ok`, `stale`
 (see `agedrop.lock`) or `unknown scope`. Then it lists open requests. `--json` prints the same as JSON.
+In a scope with `redact = true` it warns on stderr about each env-style secret too short to redact
+(see § `exec`), whose length it reads from the age file without decrypting it.
 
 ### `check`
 
@@ -260,7 +265,10 @@ Exits `0` when the repository follows this spec and `1` otherwise, listing every
 - every `recipients/<name>.identity.age` is an ASCII-armored age file and has a `recipients/<name>.pub`
   of kind `owner`.
 
-`check` never decrypts, so it runs in CI without an identity.
+`check` never decrypts, so it runs in CI without an identity. It also prints, as warnings that do not change the
+exit code, the env-style secrets in scopes with `redact = true` that are too short to redact (see § `exec`). An age
+file reveals its plaintext's length (payload = 16-byte nonce + plaintext + a 16-byte tag per started 64 KiB chunk,
+at least one), so this needs no key.
 
 ### `pull <scope> [NAME…]`
 
@@ -336,7 +344,27 @@ A secret whose previous recipients are unknown (no lock entry or no `[sets]` ent
 
 Decrypts the env-style secrets directly in `secrets/<scope>/`, runs `<cmd>` with them added to the current
 environment (they win over variables of the same name), and exits with its exit code. Nothing is written to disk.
-File-style secrets are skipped with a note.
+File-style secrets are skipped with a note. SIGINT, SIGTERM and SIGHUP are passed on to `<cmd>`; when it dies
+of a signal, `exec` exits with 128 + the signal's number.
+
+`--redact` masks the values in `<cmd>`'s stdout and stderr. `redact = true` on the scope in `agedrop.toml`
+turns it on without the flag, and then `--no-redact` is refused. Redaction is leak hygiene, not isolation:
+`<cmd>` still has the values and can send them anywhere, and a value it transforms beyond the forms below
+passes through. Rules:
+
+- Every env-style value given to `<cmd>` that is at least **6 bytes** long is matched, in these forms: its
+  exact bytes; without trailing newlines; URL-encoded (`encodeURIComponent`, and with `+` for spaces);
+  JSON-string-escaped; and base64, standard and URL-safe, padded and unpadded, including the characters
+  that only depend on the value when it sits at any offset inside a longer base64 text (as in
+  `Authorization: Basic …`). Shorter values are not matched, and `exec` names them on stderr.
+- Each run of output covered by matches is replaced by one marker, `[REDACTED:<NAME>]`, naming the secret
+  of the run's first match. Overlapping matches, even of different secrets, merge into one run, so no byte of
+  any match survives. Secret names are not secret: they are in the repository's paths.
+- Matching works on bytes across chunk boundaries. Output that could still be the start of a match is held
+  back until more output arrives or the stream ends; everything else passes through at once.
+- `<cmd>`'s stdout and stderr are pipes, so it sees no terminal there: interactive programs, colours
+  and progress bars may change. stdin is still `<cmd>`'s own.
+- Without `--redact` and `redact = true`, output is not touched, whether or not it goes to a terminal.
 
 ## Notifications
 
@@ -511,6 +539,11 @@ browsers, so this is the one step without a CLI command.
   and runs it only after the human confirms (or passes `--generate`). Read it before saying yes.
 - **Agents never hold an identity.** A requester learns that a secret exists, never its value. A host that
   needs the value runs `pull` or `exec` with its own identity, outside the agent's session.
+- **Redaction is hygiene.** `exec --redact` keeps values out of an output an agent or a log reads; it does not
+  stop a command that holds them from writing them to a file or the network, or an agent on a host with an
+  identity from running `age -d` itself. Values under 6 bytes are not matched, since they would mask ordinary
+  output; `ls` and `check` warn about them. A redacted run also tells whether a printed string equals a value,
+  which only helps guess values that are short or predictable.
 - **The web UI's token can push.** Anyone holding it can replace secrets and file requests, though not read
   a value. Give it only the one repository and *Contents*, and an expiry. The page loads no third-party code,
   and its Content Security Policy lets it connect only to `api.github.com`.
