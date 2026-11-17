@@ -242,25 +242,40 @@ export async function readBlobs(
   });
   child.stdin.end(blobs.map((blob) => `${blob}\n`).join(""));
 
-  let pending: Buffer = Buffer.alloc(0);
+  // Chunks are joined only when a header or a whole blob is there, so a large blob is copied once.
+  let chunks: Buffer[] = [];
+  let length = 0;
+  const joined = (): Buffer => {
+    const all =
+      chunks.length === 1 ? (chunks[0] ?? Buffer.alloc(0)) : Buffer.concat(chunks, length);
+    chunks = [all];
+    return all;
+  };
+  const keep = (rest: Buffer): void => {
+    chunks = [rest];
+    length = rest.length;
+  };
   let header: { blob: string; size: number } | undefined;
   let index = 0;
   for await (const chunk of child.stdout as AsyncIterable<Buffer>) {
-    pending = pending.length === 0 ? chunk : Buffer.concat([pending, chunk]);
+    chunks.push(chunk);
+    length += chunk.length;
     for (;;) {
       if (header === undefined) {
+        const pending = joined();
         const end = pending.indexOf(10);
         if (end < 0) break;
         const line = pending.subarray(0, end).toString("utf8");
-        pending = pending.subarray(end + 1);
+        keep(pending.subarray(end + 1));
         const [blob = "", type = "", size = ""] = line.split(" ");
         if (type !== "blob") throw new Error(`git cat-file: ${line}`);
         header = { blob, size: Number(size) };
         if (blob !== blobs[index]) throw new Error(`git cat-file: expected ${blobs[index] ?? ""}`);
       }
-      if (pending.length < header.size + 1) break;
+      if (length < header.size + 1) break;
+      const pending = joined();
       onBlob(header.blob, pending.subarray(0, header.size));
-      pending = pending.subarray(header.size + 1);
+      keep(pending.subarray(header.size + 1));
       header = undefined;
       index++;
     }
