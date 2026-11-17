@@ -14,6 +14,7 @@ recipients = ["owners", "mini"]
 
 [scopes."ci/deploy"]
 recipients = ["owners", "ci"]
+redact = true                   # optional: exec always masks values in output
 `;
 
 function issuesOf(text: string): readonly string[] {
@@ -34,6 +35,16 @@ describe("parseConfig", () => {
     expect(config.groups.get("mini")).toEqual(["server"]);
     expect(config.scopes.get("mini/hq")).toEqual(["owners", "mini"]);
     expect([...config.scopes.keys()]).toEqual(["mini/hq", "ci/deploy"]);
+    expect([...config.redacted]).toEqual(["ci/deploy"]);
+  });
+
+  it("takes redact as a boolean per scope", () => {
+    const base = `version = 0\n[recipients]\nowners = ["me"]\n[scopes.app]\nrecipients = ["owners"]\n`;
+    expect(parseConfig(`${base}redact = false\n`).redacted.size).toBe(0);
+    expect(parseConfig(base).redacted.size).toBe(0);
+    expect(issuesOf(`${base}redact = "yes"\n`)).toEqual([
+      `scopes."app".redact must be true or false`,
+    ]);
   });
 
   it("accepts a config with no scopes yet", () => {

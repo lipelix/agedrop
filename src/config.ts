@@ -12,6 +12,8 @@ export interface Config {
   readonly groups: ReadonlyMap<string, readonly string[]>;
   /** Scope → group names. Every list contains `owners`. */
   readonly scopes: ReadonlyMap<string, readonly string[]>;
+  /** Scopes with `redact = true`: `exec` always masks their values in output. */
+  readonly redacted: ReadonlySet<string>;
 }
 
 /** Parses and validates `agedrop.toml`. Throws {@link FormatError} listing every problem found. */
@@ -32,10 +34,11 @@ export function parseConfig(text: string): Config {
   }
 
   const groups = parseGroups(raw.recipients, issues);
-  const scopes = parseScopes(raw.scopes, groups, issues);
+  const redacted = new Set<string>();
+  const scopes = parseScopes(raw.scopes, groups, redacted, issues);
 
   if (issues.length > 0) throw new FormatError(CONFIG_FILE, issues);
-  return { version: FORMAT_VERSION, groups, scopes };
+  return { version: FORMAT_VERSION, groups, scopes, redacted };
 }
 
 function parseGroups(value: unknown, issues: string[]): Map<string, string[]> {
@@ -69,6 +72,7 @@ function parseGroups(value: unknown, issues: string[]): Map<string, string[]> {
 function parseScopes(
   value: unknown,
   groups: ReadonlyMap<string, readonly string[]>,
+  redacted: Set<string>,
   issues: string[],
 ): Map<string, string[]> {
   const scopes = new Map<string, string[]>();
@@ -88,8 +92,12 @@ function parseScopes(
       continue;
     }
     for (const key of Object.keys(body)) {
-      if (key !== "recipients") issues.push(`${where}: unknown key "${key}"`);
+      if (key !== "recipients" && key !== "redact") issues.push(`${where}: unknown key "${key}"`);
     }
+    if (body.redact !== undefined && typeof body.redact !== "boolean") {
+      issues.push(`${where}.redact must be true or false`);
+    }
+    if (body.redact === true) redacted.add(scope);
     const list = stringList(body.recipients, `${where}.recipients`, issues);
     if (list === undefined) continue;
     for (const group of list) {

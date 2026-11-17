@@ -65,3 +65,28 @@ export function isAgeArmor(text: string): boolean {
     return false;
   }
 }
+
+const CHUNK = 64 * 1024;
+const TAG = 16;
+const NONCE = 16;
+const MAC_LINE = new TextEncoder().encode("\n--- ");
+
+/**
+ * The plaintext length of an ASCII-armored age file, read from its size without decrypting it: the payload
+ * is a 16-byte nonce, then the plaintext in 64 KiB chunks with a 16-byte tag each (at least one chunk).
+ * `undefined` when the file is not an age file.
+ */
+export function plaintextLength(armored: string): number | undefined {
+  if (!isAgeArmor(armored)) return undefined;
+  const bytes = armor.decode(armored);
+  let mac = -1;
+  for (let i = 0; i + MAC_LINE.length <= bytes.length && mac === -1; i++) {
+    if (MAC_LINE.every((byte, j) => bytes[i + j] === byte)) mac = i;
+  }
+  const headerEnd = mac === -1 ? -1 : bytes.indexOf(0x0a, mac + 1);
+  if (headerEnd === -1) return undefined;
+  const sealed = bytes.length - (headerEnd + 1) - NONCE;
+  const chunks = Math.max(1, Math.ceil(sealed / (CHUNK + TAG)));
+  const length = sealed - chunks * TAG;
+  return length < 0 ? undefined : length;
+}
