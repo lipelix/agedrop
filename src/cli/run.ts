@@ -8,6 +8,7 @@ import { init } from "./commands/init.js";
 import { keygen } from "./commands/keygen.js";
 import { ls } from "./commands/ls.js";
 import { notify } from "./commands/notify.js";
+import { protect } from "./commands/protect.js";
 import { pull } from "./commands/pull.js";
 import { rekey } from "./commands/rekey.js";
 import { request } from "./commands/request.js";
@@ -25,6 +26,7 @@ export const COMMANDS: readonly Command[] = [
   notify,
   ls,
   check,
+  protect,
   pull,
   exec,
   rekey,

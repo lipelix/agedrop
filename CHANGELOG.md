@@ -8,6 +8,14 @@ the CLI; such changes are marked **Breaking**.
 
 ### Added
 
+- `agedrop protect` installs a git pre-commit hook that runs `check --staged`, which refuses a commit holding
+  plaintext under `secrets/`, an age private key or a `.env` / `.env.*` file no ignore rule covers; `--values`
+  also looks for every value the host can decrypt. `check --since <rev>` checks every commit since `<rev>`, and
+  `init --ci github` writes `.github/workflows/agedrop-check.yml`, which runs it on pull requests and pushes to
+  the default branch, catching `--no-verify` and commits made on the web. Messages name the file and the
+  reason, never the value.
+- `init` and `protect` add `.env`, `.env.*`, `identity` and `*.identity` to `.gitignore`; `pull` adds the files it
+  writes inside a git work tree to the `.gitignore` next to them and warns about ones git tracks.
 - `exec --redact` replaces the scope's values in the command's stdout and stderr with `[REDACTED:<NAME>]`,
   also their URL-encoded, JSON-escaped and base64 forms, so a command an agent runs cannot print them into its
   transcript. `redact = true` on a scope in `agedrop.toml` makes it the default there and refuses `--no-redact`.
@@ -21,6 +29,8 @@ the CLI; such changes are marked **Breaking**.
 ### Changed
 
 - Web UI: the sign-in form checks the token against GitHub before storing it.
+- `init --ci github` in a repository with one of its workflows writes the other and leaves the existing one as it
+  is; it fails only when both exist.
 - **Breaking:** `add` and `fulfil` remove trailing newlines from an env-style value read from stdin, as the
   `--generate` path already did, so `agedrop fulfil <id> < token-file` stores the token without the file's
   newline. File-style values still keep their exact bytes.

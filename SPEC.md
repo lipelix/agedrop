@@ -183,7 +183,7 @@ Validation rules:
 
 | Command | Needs a private key | What it does |
 |---|---|---|
-| `agedrop init --owner <name> [--ci github]` | no | creates `agedrop.toml` and an empty `agedrop.lock` in the current directory, and the notification workflow |
+| `agedrop init --owner <name> [--ci github]` | no | creates `agedrop.toml`, an empty `agedrop.lock` and `.gitignore` entries in the current directory, and the CI workflows |
 | `agedrop keygen <name> [--kind …]` | no | creates an identity on this host and its `recipients/<name>.pub` |
 | `agedrop add <scope> <NAME>` | no | reads the value from stdin, encrypts it to the scope's recipients |
 | `agedrop request <scope> <NAME> --reason …` | no | files a request |
@@ -195,6 +195,8 @@ Validation rules:
 | `agedrop exec <scope> [--redact] -- <cmd>` | yes (host) | runs `<cmd>` with the scope's values in its environment, optionally masking them in its output |
 | `agedrop rekey [scope]` | yes (owner) | re-encrypts to the current recipients and updates `agedrop.lock` |
 | `agedrop check` | no | validates layout, names and lock fingerprints |
+| `agedrop check --staged \| --since <rev>` | no | refuses plaintext values and private keys in a commit (`--values`: yes, host) |
+| `agedrop protect` | no | installs a git pre-commit hook that runs `check --staged` |
 
 Common rules:
 
@@ -222,11 +224,13 @@ format, so `age -d -i ~/.config/agedrop/identity` reads every secret the host ca
 
 Creates `agedrop.toml` with `version = 0` and `owners = ["<name>"]`, and an empty `agedrop.lock`.
 It refuses to run where `agedrop.toml` already exists. The owner's public key is added with `keygen`
-or by writing `recipients/<name>.pub` by hand.
+or by writing `recipients/<name>.pub` by hand. It also adds the lines of § `protect` that are missing to
+`.gitignore`, and inside a git work tree it suggests `agedrop protect`.
 
-`--ci github` also writes `.github/workflows/agedrop-requests.yml` (see § Notifications). In a repository that
-already has `agedrop.toml`, `init --ci github` writes only the workflow, and `--owner` is not needed. It never
-overwrites a workflow file.
+`--ci github` also writes two workflows: `.github/workflows/agedrop-requests.yml` (see § Notifications) and
+`.github/workflows/agedrop-check.yml` (see § `check`). In a repository that already has `agedrop.toml`,
+`init --ci github` writes only the workflows, and `--owner` is not needed. It never overwrites a workflow file:
+one that exists is skipped with a note, and when both exist the command fails.
 
 ### `keygen <name>`
 
@@ -270,6 +274,51 @@ exit code, the env-style secrets in scopes with `redact = true` that are too sho
 file reveals its plaintext's length (payload = 16-byte nonce + plaintext + a 16-byte tag per started 64 KiB chunk,
 at least one), so this needs no key.
 
+#### `check --staged` and `check --since <rev>`
+
+These check what a commit would add to git history instead of the repository's layout, so that plaintext never
+gets there: history cannot be cleaned reliably once a value is pushed. `--staged` checks the files staged for
+the next commit, as git's index holds them (it is the pre-commit hook's command, see § `protect`). `--since <rev>`
+checks every file version that the commits in `<rev>..HEAD` add or change, so a value committed and removed again
+is still found; a `<rev>` of all zeros means every commit reachable from `HEAD`. Both look at every path of the
+git repository, not only the agedrop directory, skip deleted files and submodules, and fail outside a git work tree.
+A file fails when it:
+
+- is under `secrets/`, is not empty and is not an ASCII-armored age file;
+- holds an age private key (`AGE-SECRET-KEY-1` or `AGE-SECRET-KEY-PQ-1` followed by at least 50 bech32
+  characters) anywhere, unless it is a `recipients/<name>.identity.age`;
+- is named `.env` or `.env.<anything>`, except `.env.example`, `.env.sample`, `.env.template` and `.env.dist`, and
+  is not covered by an ignore rule (`.gitignore`, `.git/info/exclude`, `core.excludesFile`). A file that is
+  ignored was added with `git add -f`, on purpose;
+- with `--values`, holds a value that the identity (see § Identity) can decrypt from any scope, in one of the forms
+  `exec --redact` matches (see § `exec`). Values under 6 bytes are not matched. Off by default: it needs a key.
+
+Each problem is reported as `agedrop: <file>: <reason>`, naming the secret (`<scope>/<NAME>`) for `--values`
+and never a value or a key. The exit code is `1` when there is one. These modes run only these rules, not the
+layout checks above, so a hook does not fail on, say, a stale lock while a rekey is under way.
+
+`init --ci github` writes `.github/workflows/agedrop-check.yml`, which runs `check --since` on every pull request
+(from its base) and on every push to the default branch (from the commit before the push). That also covers
+`git commit --no-verify` and commits made on GitHub's web pages, which skip the hook.
+
+### `protect`
+
+Installs a git pre-commit hook that runs `agedrop check --staged` (with `--repo <dir>` when the agedrop directory
+is not the work tree's top), and adds these lines to `.gitignore` in the agedrop directory when they are missing:
+
+```
+.env
+.env.*
+!.env.example
+identity
+*.identity
+```
+
+The hook is a plain `sh` script and needs `agedrop` on `PATH`; without it, it fails and says so. Its path is
+`git rev-parse --git-path hooks/pre-commit`, so it follows `core.hooksPath` and linked worktrees. `protect`
+never replaces a pre-commit hook it did not write, unless `--force` is given; one it wrote is rewritten.
+`git commit --no-verify` skips the hook, which is why the CI workflow runs the same check.
+
 ### `pull <scope> [NAME…]`
 
 Decrypts the secrets directly in `secrets/<scope>/` (not nested scopes), or only the named ones:
@@ -280,6 +329,10 @@ Decrypts the secrets directly in `secrets/<scope>/` (not nested scopes), or only
   values are skipped with a note. A value is written bare when it only holds `A-Z a-z 0-9 _ . , / : @ + = -`,
   in single quotes when it holds no `'`, and otherwise in double quotes with `\`, `"`, `$` and newlines
   escaped as `\\`, `\"`, `\$` and `\n`. An env-style value must be valid UTF-8 without NUL bytes.
+
+When a written file is inside a git work tree and no ignore rule covers it, `pull` appends `/<file name>` to the
+`.gitignore` next to it (creating it) and says so, so that `git add .` does not pick the values up. When git
+already tracks a written file, `pull` warns: the next commit of that file would hold the values.
 
 ### `request <scope> <NAME> --reason <text>`
 
@@ -530,6 +583,10 @@ browsers, so this is the one step without a CLI command.
 ## Security notes
 
 - **Plaintext never enters the repo.** The CLI and the web UI encrypt locally, and nothing else ever handles a value.
+  A value decrypted to a file can still be committed by mistake: `pull` adds its files to `.gitignore`, and
+  `protect` and the CI workflow refuse commits with plaintext under `secrets/`, private keys and unignored `.env`
+  files. That is a guard against mistakes, not a control: `--no-verify` skips the hook, and a value pasted into
+  any other file is only found with `check --values`.
 - **Write integrity.** Anyone who can push can *replace* a secret, though they cannot read one.
   Use branch protection or PRs for `secrets/`, and signed commits. `ls` shows who changed each secret last.
 - **Removing a recipient does not revoke history.** Old commits stay decryptable by the removed key.

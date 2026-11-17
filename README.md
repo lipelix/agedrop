@@ -16,8 +16,9 @@ Status: **v0.1, format draft v0.** The format is in [SPEC.md](SPEC.md). Breaking
 You need Node.js 22.12 or newer and git. Run it in a new git repository, or in the one you deploy from.
 
 ```sh
-npx agedrop init --owner alice          # agedrop.toml and agedrop.lock
+npx agedrop init --owner alice          # agedrop.toml, agedrop.lock and .gitignore lines for .env files
 npx agedrop keygen alice --kind owner   # ~/.config/agedrop/identity and recipients/alice.pub
+npx agedrop protect                     # a pre-commit hook that refuses plaintext secrets and private keys
 ```
 
 Add a scope (a deployment target) to `agedrop.toml`:
@@ -82,7 +83,7 @@ Reading a value in the browser uses an owner identity wrapped by a passkey ([doc
 
 | Command                                    | Needs a private key | What it does                                                |
 | ------------------------------------------ | ------------------- | ----------------------------------------------------------- |
-| `init --owner <name> [--ci github]`        | no                  | creates `agedrop.toml`, `agedrop.lock` and the notify workflow |
+| `init --owner <name> [--ci github]`        | no                  | creates `agedrop.toml`, `agedrop.lock` and the CI workflows  |
 | `keygen <name> [--kind …]`                 | no                  | creates an identity on this host and its `recipients/<name>.pub` |
 | `add <scope> <NAME>`                       | no                  | encrypts a value from stdin to the scope's recipients       |
 | `request <scope> <NAME> --reason …`        | no                  | files a request for a secret                                |
@@ -91,6 +92,8 @@ Reading a value in the browser uses an owner identity wrapped by a passkey ([doc
 | `notify [id…]`                             | no                  | tells a human about new requests                            |
 | `ls [scope]`                               | no                  | lists secrets, last change, stale encryption, open requests |
 | `check`                                    | no                  | validates layout, names and lock fingerprints (for CI)      |
+| `check --staged \| --since <rev>`          | no                  | refuses plaintext secrets and private keys in a commit      |
+| `protect`                                  | no                  | installs a pre-commit hook that runs `check --staged`       |
 | `pull <scope> --to <dir> \| --env <file>`  | yes (host)          | decrypts a scope to files or an env file                    |
 | `exec <scope> [--redact] -- <cmd>`         | yes (host)          | runs a command with the scope's values in its environment, optionally masked in its output |
 | `rekey [scope]`                            | yes (owner)         | re-encrypts stale secrets to the current recipients         |
@@ -99,7 +102,10 @@ Reading a value in the browser uses an owner identity wrapped by a passkey ([doc
 
 ## Threat model in brief
 
-- **Plaintext never enters the repository.** The CLI and the web UI encrypt locally.
+- **Plaintext never enters the repository.** The CLI and the web UI encrypt locally. A value decrypted to a file
+  can still be committed by mistake: `agedrop protect` and the CI workflow from `init --ci github` refuse
+  plaintext under `secrets/`, private keys and unignored `.env` files, and `pull` adds what it writes to
+  `.gitignore`. They guard against mistakes; `--no-verify` skips the hook, though not the CI check.
 - **A push can replace a secret, not read it.** Anyone with push access can overwrite a secret or a
   `recipients/*.pub` file. Protect `secrets/` and `recipients/` with branch protection or pull requests, and sign
   commits. `agedrop ls` shows who changed each secret last.

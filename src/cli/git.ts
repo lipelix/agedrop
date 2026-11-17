@@ -1,4 +1,5 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { resolve } from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -131,4 +132,183 @@ export async function addedSince(root: string, rev: string, dir: string): Promis
     dir,
   ]);
   return out.split("\0").filter((path) => path !== "");
+}
+
+/** Where git's work tree starts, and the path from there to `dir` (`""` or ending in `/`). */
+export interface WorkTree {
+  readonly top: string;
+  readonly prefix: string;
+}
+
+/** The work tree holding `dir`, or `undefined` outside one or without git. */
+export async function workTree(dir: string): Promise<WorkTree | undefined> {
+  try {
+    const [top = "", prefix = ""] = (
+      await git(dir, ["rev-parse", "--show-toplevel", "--show-prefix"])
+    ).split("\n");
+    return top === "" ? undefined : { top, prefix };
+  } catch {
+    return undefined;
+  }
+}
+
+/** A file version that a commit would add: its path from the work tree's top and its blob. */
+export interface FileVersion {
+  readonly path: string;
+  readonly blob: string;
+}
+
+/** The files staged for the next commit (added, modified or with a changed type), not deleted ones. */
+export async function stagedFiles(top: string): Promise<FileVersion[]> {
+  return parseRaw(
+    await git(top, [
+      "diff",
+      "--cached",
+      "--raw",
+      "-z",
+      "--no-renames",
+      "--no-abbrev",
+      "--no-ext-diff",
+      "--diff-filter=AMT",
+    ]),
+  );
+}
+
+/**
+ * Every file version that the commits in `rev..HEAD` add or change, each once. A `rev` of all zeros
+ * means every commit reachable from `HEAD`. Fails when `rev` is not a commit git has.
+ */
+export async function committedFiles(top: string, rev: string): Promise<FileVersion[]> {
+  const all = /^0+$/.test(rev);
+  if (!all)
+    await git(top, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${rev}^{commit}`]);
+  return parseRaw(
+    await git(top, [
+      "log",
+      "--raw",
+      "-z",
+      "--no-renames",
+      "--no-abbrev",
+      "--format=",
+      "--diff-filter=AMT",
+      all ? "HEAD" : `${rev}..HEAD`,
+      "--",
+    ]),
+  );
+}
+
+/** Parses `--raw -z` output (`:<mode> <mode> <blob> <blob> <status>\0<path>\0`), skipping submodules. */
+function parseRaw(out: string): FileVersion[] {
+  const seen = new Set<string>();
+  const files: FileVersion[] = [];
+  const fields = out.split("\0");
+  for (let i = 0; i < fields.length; i++) {
+    const header = fields[i] ?? "";
+    if (!header.startsWith(":")) continue;
+    const path = fields[++i] ?? "";
+    const [, mode = "", , blob = ""] = header.slice(1).split(" ");
+    if (mode === "160000" || path === "") continue; // a submodule's commit, not a file
+    const key = `${blob} ${path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    files.push({ path, blob });
+  }
+  return files;
+}
+
+/**
+ * Reads blobs with one `git cat-file --batch`, calling `onBlob` for each in order.
+ * Only one blob is held in memory at a time.
+ */
+export async function readBlobs(
+  top: string,
+  blobs: readonly string[],
+  onBlob: (blob: string, content: Buffer) => void,
+): Promise<void> {
+  if (blobs.length === 0) return;
+  const child = spawn("git", ["cat-file", "--batch"], {
+    cwd: top,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let stderr = "";
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk: string) => (stderr += chunk));
+  const exit = new Promise<number | null>((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", resolve);
+  });
+  child.stdin.on("error", () => {
+    // git exiting early is reported through its exit code.
+  });
+  child.stdin.end(blobs.map((blob) => `${blob}\n`).join(""));
+
+  // Chunks are joined only when a header or a whole blob is there, so a large blob is copied once.
+  let chunks: Buffer[] = [];
+  let length = 0;
+  const joined = (): Buffer => {
+    const all =
+      chunks.length === 1 ? (chunks[0] ?? Buffer.alloc(0)) : Buffer.concat(chunks, length);
+    chunks = [all];
+    return all;
+  };
+  const keep = (rest: Buffer): void => {
+    chunks = [rest];
+    length = rest.length;
+  };
+  let header: { blob: string; size: number } | undefined;
+  let index = 0;
+  for await (const chunk of child.stdout as AsyncIterable<Buffer>) {
+    chunks.push(chunk);
+    length += chunk.length;
+    for (;;) {
+      if (header === undefined) {
+        const pending = joined();
+        const end = pending.indexOf(10);
+        if (end < 0) break;
+        const line = pending.subarray(0, end).toString("utf8");
+        keep(pending.subarray(end + 1));
+        const [blob = "", type = "", size = ""] = line.split(" ");
+        if (type !== "blob") throw new Error(`git cat-file: ${line}`);
+        header = { blob, size: Number(size) };
+        if (blob !== blobs[index]) throw new Error(`git cat-file: expected ${blobs[index] ?? ""}`);
+      }
+      if (length < header.size + 1) break;
+      const pending = joined();
+      onBlob(header.blob, pending.subarray(0, header.size));
+      keep(pending.subarray(header.size + 1));
+      header = undefined;
+      index++;
+    }
+  }
+  const code = await exit;
+  if (code !== 0 || index !== blobs.length) {
+    throw new Error(`git cat-file --batch failed: ${stderr.trim() || `exit ${String(code)}`}`);
+  }
+}
+
+/** The paths (from the work tree's top) that an ignore rule covers, whether tracked or not. */
+export async function ignoredPaths(top: string, paths: readonly string[]): Promise<Set<string>> {
+  if (paths.length === 0) return new Set();
+  const out = await new Promise<string>((resolve, reject) => {
+    const child = execFile(
+      "git",
+      ["check-ignore", "--no-index", "-z", "--stdin"],
+      { cwd: top, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+      (error, stdout) => {
+        // Exit 1 means none is ignored.
+        if (error !== null && error.code !== 1) reject(new Error(error.message));
+        else resolve(stdout);
+      },
+    );
+    child.stdin?.on("error", () => {
+      // Reported through the exit code.
+    });
+    child.stdin?.end(paths.map((path) => `${path}\0`).join(""));
+  });
+  return new Set(out.split("\0").filter((path) => path !== ""));
+}
+
+/** The pre-commit hook's absolute path, following `core.hooksPath` and linked worktrees. */
+export async function preCommitHookPath(top: string): Promise<string> {
+  return resolve(top, (await git(top, ["rev-parse", "--git-path", "hooks/pre-commit"])).trim());
 }

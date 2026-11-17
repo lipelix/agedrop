@@ -15,12 +15,21 @@ import { listRequestIds, listSecretFiles, readOptional } from "../../node.js";
 import { OWNER_IDENTITY_EXTENSION, ownerIdentityIssues } from "../../owner.js";
 import { parseRecipientFile, type RecipientInfo } from "../../recipients.js";
 import { parseRequest } from "../../requests.js";
-import { isAgeArmor } from "../../secret.js";
+import { decryptSecret, isAgeArmor } from "../../secret.js";
 import { missingRecipients, resolveScope } from "../../scope.js";
 import type { Command } from "../command.js";
 import { parse } from "../command.js";
-import { note, UsageError } from "../context.js";
-import { tooShortToRedact, tooShortWarning } from "../redact.js";
+import { CliError, type Context, note, UsageError } from "../context.js";
+import { committedFiles, type FileVersion, stagedFiles, workTree } from "../git.js";
+import { loadIdentity } from "../identity.js";
+import { findLeaks } from "../leaks.js";
+import {
+  MIN_REDACT_LENGTH,
+  type Pattern,
+  redactionPatterns,
+  tooShortToRedact,
+  tooShortWarning,
+} from "../redact.js";
 import { requireRoot } from "../repo.js";
 
 interface Problem {
@@ -30,19 +39,46 @@ interface Problem {
 
 export const check: Command = {
   name: "check",
-  summary: "validate layout, names and lock fingerprints (for CI)",
+  summary: "validate layout and lock fingerprints, or refuse plaintext in a commit",
   help: `usage: agedrop check [--repo <dir>]
+       agedrop check (--staged | --since <rev>) [--values [--identity <file>]] [--repo <dir>]
 
 Validates agedrop.toml, recipients/*.pub and *.identity.age, requests/*.toml,
 the paths and armor of every file under secrets/, and that agedrop.lock
 matches each scope's current recipients. Exits 1 and lists every problem when there are
 any. Also warns, without failing, about env-style secrets too short for redaction in
-scopes with redact = true. Never decrypts, so CI can run it without an identity.`,
+scopes with redact = true. Never decrypts, so CI can run it without an identity.
+
+--staged checks the files staged for the next commit instead (the pre-commit
+hook from agedrop protect runs it); --since <rev> checks every file version the
+commits in <rev>..HEAD add or change (CI). Either fails on plaintext under
+secrets/, an age private key in any file, and a .env or .env.* file that no
+ignore rule covers. --values also looks for every value the identity (--identity,
+AGEDROP_IDENTITY or ~/.config/agedrop/identity) can decrypt. Messages name the
+file and the reason, never a value.`,
   async run(ctx, args) {
-    const { values, positionals } = parse(args, { repo: { type: "string" } });
+    const { values, positionals } = parse(args, {
+      staged: { type: "boolean" },
+      since: { type: "string" },
+      values: { type: "boolean" },
+      identity: { type: "string" },
+      repo: { type: "string" },
+    });
     if (positionals.length > 0)
       throw new UsageError(`unexpected argument "${positionals[0] ?? ""}"`);
+    if (values.staged === true && values.since !== undefined) {
+      throw new UsageError("pass --staged or --since <rev>, not both");
+    }
+    const commit = values.staged === true || values.since !== undefined;
+    if (!commit && (values.values === true || values.identity !== undefined)) {
+      throw new UsageError("--values and --identity need --staged or --since <rev>");
+    }
+    if (values.identity !== undefined && values.values !== true) {
+      throw new UsageError("--identity needs --values");
+    }
     const root = await requireRoot(ctx, values.repo);
+    if (commit)
+      return checkCommit(ctx, root, values.since, values.values === true, values.identity);
     const result = await checkRepository(root);
     for (const path of result.tooShortToRedact) note(ctx, tooShortWarning(path));
     for (const { file, issue } of result.problems) ctx.stderr.write(`agedrop: ${file}: ${issue}\n`);
@@ -58,6 +94,89 @@ scopes with redact = true. Never decrypts, so CI can run it without an identity.
     return 0;
   },
 };
+
+/** `check --staged` and `check --since <rev>` (SPEC.md § `check --staged`). */
+async function checkCommit(
+  ctx: Context,
+  root: string,
+  since: string | undefined,
+  withValues: boolean,
+  identityFile: string | undefined,
+): Promise<number> {
+  const tree = await workTree(root);
+  if (tree === undefined) throw new CliError(`${root} is not in a git work tree`);
+  let files: FileVersion[];
+  if (since === undefined) {
+    files = await stagedFiles(tree.top);
+  } else {
+    try {
+      files = await committedFiles(tree.top, since);
+    } catch {
+      throw new CliError(`--since "${since}" is not a commit in this repository`);
+    }
+  }
+  const patterns = withValues ? await valuePatterns(ctx, root, identityFile) : [];
+  const leaks = await findLeaks(tree.top, tree.prefix, files, patterns);
+  for (const { file, issue } of leaks) ctx.stderr.write(`agedrop: ${file}: ${issue}\n`);
+  if (leaks.length > 0) {
+    ctx.stderr.write(
+      `${plural(leaks.length, "problem")}: nothing with a value or a key may be committed (SPEC.md § check --staged)\n`,
+    );
+    return 1;
+  }
+  ctx.stdout.write(
+    since === undefined
+      ? `ok: ${plural(files.length, "staged file")}\n`
+      : `ok: ${plural(files.length, "file version")} since ${since}\n`,
+  );
+  return 0;
+}
+
+/** The forms of every value the identity can decrypt, from every scope, to look for with `--values`. */
+async function valuePatterns(
+  ctx: Context,
+  root: string,
+  identityFile: string | undefined,
+): Promise<Pattern[]> {
+  const identity = await loadIdentity(ctx, identityFile);
+  const secrets = (await listSecretFiles(root)).filter(
+    (file) => file.scope !== undefined && file.name !== undefined,
+  );
+  const patterns: Pattern[] = [];
+  const short: string[] = [];
+  let decrypted = 0;
+  for (const secret of secrets) {
+    const id = `${secret.scope ?? ""}/${secret.name ?? ""}`;
+    let value: Uint8Array;
+    try {
+      value = await decryptSecret(
+        await readFile(join(root, secret.path), "utf8"),
+        identity.identities,
+      );
+    } catch {
+      continue; // not for this host: its value cannot be here by way of this host
+    }
+    decrypted++;
+    if (value.length < MIN_REDACT_LENGTH) short.push(id);
+    patterns.push(...redactionPatterns(id, value));
+  }
+  if (secrets.length > 0 && decrypted === 0) {
+    throw new CliError(
+      `--values: the identity from ${identity.source} decrypts none of the ${plural(secrets.length, "secret")}`,
+    );
+  }
+  note(
+    ctx,
+    `--values: looking for ${plural(decrypted, "value")} this identity decrypts, of ${plural(secrets.length, "secret")}`,
+  );
+  if (short.length > 0) {
+    note(
+      ctx,
+      `--values: not looking for values under ${String(MIN_REDACT_LENGTH)} bytes: ${short.join(", ")}`,
+    );
+  }
+  return patterns;
+}
 
 function plural(count: number, word: string): string {
   return `${String(count)} ${word}${count === 1 ? "" : "s"}`;

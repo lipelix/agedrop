@@ -6,9 +6,16 @@ import { writeFileAtomic } from "../../node.js";
 import type { Command } from "../command.js";
 import { parse } from "../command.js";
 import { CliError, note, UsageError } from "../context.js";
+import { workTree } from "../git.js";
+import { addIgnores, PROTECT_IGNORES } from "../gitignore.js";
 import { exists } from "../repo.js";
 import { version } from "../version.js";
-import { GITHUB_WORKFLOW_PATH, githubWorkflow } from "../workflow.js";
+import {
+  CHECK_WORKFLOW_PATH,
+  checkWorkflow,
+  GITHUB_WORKFLOW_PATH,
+  githubWorkflow,
+} from "../workflow.js";
 
 export const init: Command = {
   name: "init",
@@ -17,11 +24,14 @@ export const init: Command = {
        agedrop init --ci github [--repo <dir>]
 
 Creates agedrop.toml (with the "owners" group holding <name>) and an empty
-agedrop.lock in the current directory, or in --repo. Then create the owner's
-key with: agedrop keygen <name> --kind owner
+agedrop.lock in the current directory, or in --repo, and adds .env, .env.*,
+identity and *.identity to .gitignore. Then create the owner's key with:
+agedrop keygen <name> --kind owner
   --ci github  also write ${GITHUB_WORKFLOW_PATH}, which runs
-               agedrop notify for new requests; in a repository that has
-               agedrop.toml already, only the workflow is written`,
+               agedrop notify for new requests, and ${CHECK_WORKFLOW_PATH},
+               which refuses commits with plaintext secrets; in a repository
+               that has agedrop.toml already, only the workflows are written,
+               and one that exists is skipped`,
   async run(ctx, args) {
     const { values, positionals } = parse(args, {
       owner: { type: "string" },
@@ -39,8 +49,23 @@ key with: agedrop keygen <name> --kind owner
     if (hasConfig && (owner !== undefined || values.ci === undefined)) {
       throw new CliError(`${join(root, CONFIG_FILE)} already exists`);
     }
-    if (values.ci === "github" && (await exists(join(root, GITHUB_WORKFLOW_PATH)))) {
-      throw new CliError(`${join(root, GITHUB_WORKFLOW_PATH)} already exists`);
+    const tree = await workTree(root);
+    const workflows: { path: string; text: string }[] = [];
+    if (values.ci === "github") {
+      const all = [
+        { path: GITHUB_WORKFLOW_PATH, text: githubWorkflow(version()) },
+        { path: CHECK_WORKFLOW_PATH, text: checkWorkflow(version()) },
+      ];
+      for (const workflow of all) {
+        if (await exists(join(root, workflow.path))) {
+          note(ctx, `${workflow.path} already exists: left as it is`);
+        } else {
+          workflows.push(workflow);
+        }
+      }
+      if (workflows.length === 0) {
+        throw new CliError(`${all.map((w) => join(root, w.path)).join(" and ")} already exist`);
+      }
     }
     if (!hasConfig) {
       if (owner === undefined) throw new UsageError("missing --owner <name>");
@@ -62,17 +87,28 @@ owners = ["${owner}"]
         await writeFileAtomic(join(root, LOCK_FILE), formatLock(EMPTY_LOCK), { mode: 0o644 });
       }
       note(ctx, `created ${CONFIG_FILE} and ${LOCK_FILE} in ${root}`);
+      const added = await addIgnores(
+        root,
+        PROTECT_IGNORES,
+        "agedrop: decrypted values and identities",
+      );
+      if (added.length > 0) note(ctx, `added to .gitignore: ${added.join(" ")}`);
     }
-    if (values.ci === "github") {
-      const path = join(root, GITHUB_WORKFLOW_PATH);
+    for (const workflow of workflows) {
+      const path = join(root, workflow.path);
       await mkdir(dirname(path), { recursive: true });
-      await writeFileAtomic(path, githubWorkflow(version()), { mode: 0o644, exclusive: true });
+      await writeFileAtomic(path, workflow.text, { mode: 0o644, exclusive: true });
       note(
         ctx,
-        `created ${GITHUB_WORKFLOW_PATH}: set AGEDROP_NTFY_URL (or another target) as a repository secret`,
+        workflow.path === GITHUB_WORKFLOW_PATH
+          ? `created ${GITHUB_WORKFLOW_PATH}: set AGEDROP_NTFY_URL (or another target) as a repository secret`
+          : `created ${CHECK_WORKFLOW_PATH}: pull requests and pushes are checked for plaintext secrets`,
       );
     }
     if (owner !== undefined) note(ctx, `next: agedrop keygen ${owner} --kind owner`);
+    if (!hasConfig && tree !== undefined) {
+      note(ctx, "then: agedrop protect, a pre-commit hook that refuses plaintext secrets");
+    }
     return 0;
   },
 };

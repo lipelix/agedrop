@@ -7,6 +7,7 @@ import { parse } from "../command.js";
 import { CliError, note, UsageError } from "../context.js";
 import { decryptScope } from "../decrypt.js";
 import { envLine, envValue } from "../dotenv.js";
+import { keepOutOfGit } from "../gitignore.js";
 import { loadIdentity } from "../identity.js";
 import { openRepository, scopeOf } from "../repo.js";
 
@@ -21,7 +22,9 @@ Decrypts the secrets directly in secrets/<scope>/ (or only NAME...):
   --to -        print one value to stdout
   --env <file>  NAME=value lines for env-style secrets, mode 600
   --env -       print those lines to stdout
-The identity is --identity, else AGEDROP_IDENTITY, else ~/.config/agedrop/identity.`,
+The identity is --identity, else AGEDROP_IDENTITY, else ~/.config/agedrop/identity.
+Inside a git work tree, files no ignore rule covers are added to the .gitignore
+next to them, and files git tracks are named in a warning.`,
   async run(ctx, args) {
     const { values, positionals } = parse(args, {
       to: { type: "string" },
@@ -60,6 +63,10 @@ The identity is --identity, else AGEDROP_IDENTITY, else ~/.config/agedrop/identi
         ctx,
         `wrote ${String(secrets.length)} secret${secrets.length === 1 ? "" : "s"} to ${dir}`,
       );
+      await keepOutOfGit(
+        ctx,
+        secrets.map((secret) => join(dir, secret.name)),
+      );
       return 0;
     }
 
@@ -90,6 +97,7 @@ The identity is --identity, else AGEDROP_IDENTITY, else ~/.config/agedrop/identi
     await writeFileAtomic(file, text, { mode: 0o600 });
     const count = secrets.length - skipped.length;
     note(ctx, `wrote ${String(count)} variable${count === 1 ? "" : "s"} to ${file}`);
+    await keepOutOfGit(ctx, [file]);
     return 0;
   },
 };
