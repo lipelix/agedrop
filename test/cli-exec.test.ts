@@ -172,6 +172,31 @@ describe("agedrop exec --redact", () => {
   });
 });
 
+describe("agedrop exec --redact into a closed pipe", () => {
+  it("closes the command's pipe when the reader goes away", { timeout: 60_000 }, async () => {
+    await withTempDir(async (dir) => {
+      const env = await repoWithValues(dir);
+      const child = spawn(
+        process.execPath,
+        [CLI, "exec", "host/app", "--redact", "--", "sh", "-c", 'yes "$TOKEN"'],
+        { cwd: dir, env: envFor(dir, env), stdio: ["ignore", "pipe", "pipe"] },
+      );
+      let first = "";
+      let stderr = "";
+      child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
+      child.stdout.once("data", (chunk: Buffer) => {
+        first = chunk.toString();
+        child.stdout.destroy(); // like `| head -1`
+      });
+      const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+      expect(first).toMatch(/^\[REDACTED:TOKEN\]\n/);
+      // yes dies of SIGPIPE, as it would without redaction; agedrop reports no error of its own.
+      expect(stderr).toBe("agedrop: not redacted, shorter than 6 bytes: PIN\n");
+      expect(code).toBe(128 + 13);
+    });
+  });
+});
+
 describe("short values in scopes that redact", () => {
   it("ls and check warn about them without failing", async () => {
     await withTempDir(async (dir) => {

@@ -5,6 +5,8 @@ export interface Output {
   write(chunk: string | Uint8Array): unknown;
   /** Present on real streams: after `write` returned `false`, wait for `drain`. */
   once?(event: "drain", listener: () => void): unknown;
+  /** Present on real streams, e.g. EPIPE when the reader of a pipe went away. */
+  on?(event: "error", listener: (error: Error) => void): unknown;
 }
 
 /** Standard input, with the terminal methods present when it is a TTY. */

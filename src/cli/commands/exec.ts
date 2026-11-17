@@ -134,11 +134,20 @@ function run(
   });
 }
 
-/** Passes a child's output stream to `out` through a {@link Redactor}, keeping `out`'s backpressure. */
+/**
+ * Passes a child's output stream to `out` through a {@link Redactor}, keeping `out`'s backpressure. When
+ * `out` fails (its reader went away), the child's pipe is closed too, so the child sees the broken pipe
+ * as it would without redaction.
+ */
 function relay(source: Readable, out: Output, patterns: readonly Pattern[]): void {
   const redactor = new Redactor(patterns);
+  let broken = false;
+  out.on?.("error", () => {
+    broken = true;
+    source.destroy();
+  });
   const write = (bytes: Buffer): void => {
-    if (bytes.length === 0) return;
+    if (bytes.length === 0 || broken) return;
     if (out.write(bytes) === false && out.once !== undefined) {
       source.pause();
       out.once("drain", () => source.resume());
