@@ -65,3 +65,25 @@ agedrop pull mini/hq --env /run/hq/app.env      # or a mode 600 env file for doc
 ```
 
 These run on the host, with the host's identity, as part of its deploy, not inside the agent's session.
+
+## Run a command that has the values
+
+The rules above keep identities out of an agent's session. When an agent's commands still run on a host that
+holds one, for example a development machine where the agent starts the app or runs its tests through
+`agedrop exec`, whatever those commands print lands in the transcript and its logs. Run them with `--redact`:
+
+```sh
+agedrop exec laptop/app --redact -- npm test
+```
+
+- Every value of 6 bytes or more becomes `[REDACTED:<NAME>]` in stdout and stderr, also its URL-encoded,
+  JSON-escaped and base64 forms. The exit code is the command's.
+- The owner sets `redact = true` on such a scope in `agedrop.toml`, so leaving out the flag shows nothing more;
+  `--no-redact` is refused there.
+- The command gets pipes, not a terminal, on stdout and stderr: interactive programs and progress bars may
+  behave differently.
+- It is hygiene, not isolation. The command has the values and can write them to a file or send them anywhere,
+  and an agent on that host could run `age -d` itself. Treat `[REDACTED:…]` as final: do not print a value
+  reversed, split or encoded some other way to see it.
+- `agedrop ls` and `agedrop check` warn about values too short to redact. Tell the owner, who can rotate them to
+  longer ones.

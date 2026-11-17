@@ -64,6 +64,14 @@ You answer with `agedrop fulfil <id>` or in the web UI. `agedrop init --ci githu
 you about new requests through ntfy, a webhook or Web Push. See [docs/agents.md](docs/agents.md) and
 [docs/notifications.md](docs/notifications.md).
 
+Where an agent's commands run with the values, keep them out of what it reads back:
+
+```sh
+agedrop exec laptop/app --redact -- npm test   # prints [REDACTED:DATABASE_URL] instead of the value
+```
+
+`redact = true` under the scope in `agedrop.toml` makes that the default and refuses `--no-redact`.
+
 ### Web UI
 
 [app.agedrop.dev](https://app.agedrop.dev) is a static page: no agedrop server, and no third-party code. Paste a
@@ -84,7 +92,7 @@ Reading a value in the browser uses an owner identity wrapped by a passkey ([doc
 | `ls [scope]`                               | no                  | lists secrets, last change, stale encryption, open requests |
 | `check`                                    | no                  | validates layout, names and lock fingerprints (for CI)      |
 | `pull <scope> --to <dir> \| --env <file>`  | yes (host)          | decrypts a scope to files or an env file                    |
-| `exec <scope> -- <cmd>`                    | yes (host)          | runs a command with the scope's values in its environment   |
+| `exec <scope> [--redact] -- <cmd>`         | yes (host)          | runs a command with the scope's values in its environment, optionally masked in its output |
 | `rekey [scope]`                            | yes (owner)         | re-encrypts stale secrets to the current recipients         |
 
 `agedrop <command> --help` shows each command's options.
@@ -99,6 +107,8 @@ Reading a value in the browser uses an owner identity wrapped by a passkey ([doc
   values that key could read; `rekey` lists them.
 - **Requests are untrusted input.** A request's reason is a claim, and its `generate` hint is a command written by
   the requester. `fulfil` runs it only after you confirm.
+- **Redaction is hygiene, not isolation.** `exec --redact` keeps values out of a command's output; the command still
+  has them and can send them elsewhere.
 - **Not in scope:** protecting a secret from processes that run as the same OS user on a machine that holds its
   identity, read audit, and dynamic or short-lived credentials.
 
@@ -117,12 +127,12 @@ The full list is in [SPEC.md § Security notes](SPEC.md#security-notes). To repo
 | Binary values (keys, certificates)  | yes                     | yes                       | no (`.env` values)        | yes                        |
 | Web UI                              | static page, no backend | no                        | hosted Armor (paid)       | yes, with a server         |
 | Agent asks for a secret it lacks    | request, value never shown | no                     | no                        | via their server           |
-| Agent runs with secrets             | `exec` (redaction planned) | `exec-env`             | `run --redact` masks output; approvals in Armor | via their server |
+| Agent runs with secrets             | `exec --redact` masks output | `exec-env`           | `run --redact` masks output; approvals in Armor | via their server |
 | Server to run or pay for            | none                    | none                      | none (Armor is optional)  | yes                        |
 
 Phase and Infisical do more: access policies, read audit, dynamic secrets, integrations. Choose them when you need
 those and can run or pay for a server. dotenvx is the closest relative and much further along: SDKs for several
-languages, OS keychain storage, output redaction and a pre-commit guard; its hosted Armor adds approvals and read
+languages, OS keychain storage and a pre-commit guard; its hosted Armor adds approvals and read
 audit. Why agedrop exists is in [docs/decisions.md](docs/decisions.md).
 
 ## Contributing
