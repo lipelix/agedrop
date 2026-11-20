@@ -68,6 +68,5 @@ The [release workflow](.github/workflows/release.yml) checks that the tag is sig
 verified) and matches `package.json` and the changelog, runs the checks, publishes to npm with provenance, runs
 `npx agedrop@x.y.z init` against the published package and creates the GitHub release.
 
-npm needs either the repository secret `NPM_TOKEN` (a granular token that can publish `agedrop`) or a trusted
-publisher on npmjs.com for this repository and `release.yml`. Trusted publishing is preferred once the package
-exists; then delete the token.
+npm authenticates the job through a trusted publisher on npmjs.com (this repository, `release.yml`, environment
+`npm`, allowed to `npm publish`). No npm token is stored in the repository.

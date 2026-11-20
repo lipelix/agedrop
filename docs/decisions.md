@@ -232,8 +232,10 @@ private repository is exhausted.
 - **`NPM_TOKEN` for the first publish, trusted publishing after.** A trusted publisher is configured on an existing
   package, so 0.1.0 goes out with a granular token. Afterwards a trusted publisher for `release.yml` replaces the
   token (npm 11.5.1 or newer, which the job installs, uses OIDC when no token is set).
+  Since 0.1.0 the trusted publisher is set up and the token is gone.
 - **The job checks the published package** with `npx agedrop@<version> init` in an empty directory, the same
-  check as the release's "done when".
+  check as the release's "done when". It retries for up to 10 minutes with `--prefer-online`: for 0.1.0, two
+  minutes were not enough for the new package to show up.
 - **Vulnerability reports go through GitHub private vulnerability reporting**, not an e-mail address: it needs no
   mail setup on agedrop.dev and keeps the report next to the advisory and the fix.
 - **The package ships `dist/` without source maps.** The maps point at `src/`, which is not in the package.
