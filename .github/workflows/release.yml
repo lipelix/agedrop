@@ -57,11 +57,9 @@ jobs:
       # Trusted publishing (OIDC) needs npm 11.5.1 or newer.
       - run: npm install -g npm@11
 
+      # Authenticates through the trusted publisher on npmjs.com (this repository, release.yml, environment npm),
+      # with OIDC and no stored token.
       - name: Publish to npm
-        env:
-          # A granular npm token with publish rights to agedrop, needed until trusted publishing is set up on
-          # npmjs.com (package settings → Trusted publisher → this workflow). With trusted publishing, delete it.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
 
       - name: Check the published package
@@ -69,10 +67,12 @@ jobs:
           version="$(node -p 'require("./package.json").version')"
           dir="$(mktemp -d)"
           cd "$dir"
-          for attempt in 1 2 3 4 5 6; do
-            if npx --yes "agedrop@$version" init --owner release-check; then break; fi
-            if [ "$attempt" = 6 ]; then echo "npx agedrop@$version init failed"; exit 1; fi
-            sleep 20
+          # A new version can take minutes to reach every registry edge; --prefer-online skips npm's cached
+          # metadata so a stale "no such version" answer is not reused.
+          for attempt in $(seq 1 20); do
+            if npx --yes --prefer-online "agedrop@$version" init --owner release-check; then break; fi
+            if [ "$attempt" = 20 ]; then echo "npx agedrop@$version init failed"; exit 1; fi
+            sleep 30
           done
           test -f agedrop.toml && test -f agedrop.lock
 
