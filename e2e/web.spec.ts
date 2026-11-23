@@ -50,6 +50,22 @@ test("the sign-in form names a saved token after its repository", async ({ page 
   await expect(form.locator("#token")).toHaveCount(1);
 });
 
+test("the token hint names the repository to pick on GitHub", async ({ page }) => {
+  const { github } = await webFixture();
+  await connect(page, github);
+  await page.goto("/");
+  // GitHub's link cannot preselect repositories, and its form starts on "All repositories".
+  const hint = page.locator("#token-hint");
+  await expect(hint).toContainText("Only select repositories");
+  await expect(hint).toContainText("choose your secrets repository");
+  await page.getByLabel("Repository").fill("some-org/vault");
+  await expect(hint).toContainText("choose some-org/vault");
+  const link = new URL(
+    (await page.getByRole("link", { name: "Create a token on GitHub" }).getAttribute("href")) ?? "",
+  );
+  expect(link.searchParams.get("target_name")).toBe("some-org");
+});
+
 test("fulfils a request: one commit, age decrypts it on the host, no plaintext on the wire", async ({
   page,
 }) => {

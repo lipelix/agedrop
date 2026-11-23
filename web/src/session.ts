@@ -108,7 +108,8 @@ export function clearSessions(): void {
 /**
  * GitHub's new fine-grained token page, filled in as far as GitHub's URL parameters allow. Token names are
  * unique per GitHub account and a token belongs to one owner, so the name carries the owner: one token per
- * owner, widened to more repositories rather than created again.
+ * owner, widened to more repositories rather than created again. GitHub has no parameter for the repositories:
+ * its form starts on "All repositories", so the form's hint says to pick "Only select repositories".
  */
 export function tokenUrl(repository: string): string {
   const owner = repository.split("/")[0] ?? "";

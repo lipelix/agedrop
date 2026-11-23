@@ -457,6 +457,7 @@ function repositoryForm(options: {
     value: options.repository,
     oninput: () => {
       link.href = tokenUrl(repository.value.trim());
+      target.textContent = repository.value.trim() || "your secrets repository";
       if (!picked) suggest();
     },
   });
@@ -486,6 +487,8 @@ function repositoryForm(options: {
     { href: tokenUrl(options.repository), target: "_blank", rel: "noopener noreferrer" },
     "Create a token on GitHub",
   );
+  // GitHub's link can fill in everything but the repositories, and its form starts on "All repositories".
+  const target = h("strong", {}, options.repository || "your secrets repository");
   const error = h("p", { class: "error", role: "alert" }, options.error ?? "");
   const idle = options.first ? "Sign in" : "Add repository";
   const submit = h("button", { class: "button", type: "submit" }, idle);
@@ -516,9 +519,12 @@ function repositoryForm(options: {
     h(
       "span",
       {},
-      "Only your secrets repositories, with Contents: read and write, and an expiry. One token can cover several repositories of the same owner. ",
       link,
-      ". If GitHub says the name is taken, you already have a token for this owner: ",
+      ". Name, Contents: read and write, and an expiry are filled in. GitHub starts on All repositories: under Repository access, pick ",
+      h("strong", {}, "Only select repositories"),
+      " and choose ",
+      target,
+      ". One token can cover several repositories of the same owner. If GitHub says the name is taken, you already have a token for this owner: ",
       h(
         "a",
         {

@@ -480,7 +480,9 @@ ticked, and is sent only to `https://api.github.com`. There is no OAuth: GitHub'
 client secret and a server. The form links to GitHub's new-token page, filled in with the name
 `agedrop web (<owner>)`, *Contents: write*, the owner and a 90-day expiry: token names are unique per GitHub
 account and a token belongs to one owner, so the name says which owner it serves, and a second repository of
-that owner widens the same token instead of making another.
+that owner widens the same token instead of making another. GitHub has no URL parameter for the repositories
+and its form starts on *All repositories*, so the form says to pick *Only select repositories* and the
+repository it names.
 
 A device can be signed in to several repositories. The name of the open repository in the top bar leads
 to **Repositories**, which lists them, opens one with a tap, removes one, and adds the next with the same
